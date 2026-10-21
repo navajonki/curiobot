@@ -1,0 +1,3167 @@
+{
+"model": "mobileclip_s0",
+"dim": 512,
+"rows": [
+{
+"label": "dog",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "puppy",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "cat",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "kitten",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "bird",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "duck",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "goose",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "chicken",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "pigeon",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "squirrel",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "rabbit",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "horse",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "cow",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "pig",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "sheep",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "goat",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "deer",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "fox",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "frog",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "turtle",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "lizard",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "snake",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "fish",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "goldfish",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "hamster",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "mouse",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "owl",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "crow",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "seagull",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "tiger",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "lion",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "elephant",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "zebra",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "giraffe",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "bear",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "monkey",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "penguin",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "dolphin",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "whale",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "crab",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "jellyfish",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "octopus",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "parrot",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "cardinal",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "robin",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "hedgehog",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "raccoon",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "chipmunk",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "camel",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "llama",
+"kind": "normal",
+"cat": "animal"
+},
+{
+"label": "butterfly",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "bee",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "ant",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "beetle",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "ladybug",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "spider",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "snail",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "worm",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "moth",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "dragonfly",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "caterpillar",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "grasshopper",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "firefly",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "cricket",
+"kind": "normal",
+"cat": "bug"
+},
+{
+"label": "fern",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "cactus",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "succulent",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "flower",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "rose",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "tulip",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "sunflower",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "daisy",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "dandelion",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "tree",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "oak tree",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "pine tree",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "palm tree",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "leaf",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "grass",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "moss",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "mushroom",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "houseplant",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "bonsai tree",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "vine",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "bush",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "pinecone",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "acorn",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "clover",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "lavender",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "orchid",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "bamboo",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "seedling",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "autumn leaves",
+"kind": "normal",
+"cat": "plant"
+},
+{
+"label": "apple",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "banana",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "orange",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "lemon",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "lime",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "strawberry",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "blueberries",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "grapes",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "watermelon",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "pineapple",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "pear",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "peach",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "cherries",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "avocado",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "tomato",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "carrot",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "broccoli",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "lettuce",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "cucumber",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "bell pepper",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "onion",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "garlic",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "potato",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "corn",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "peas",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "bread",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "toast",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "bagel",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "croissant",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "sandwich",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "pizza",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "pasta",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "noodles",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "rice",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "soup",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "salad",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "egg",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "pancakes",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "waffle",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "cereal",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "cookie",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "cake",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "cupcake",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "donut",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "muffin",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "ice cream",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "chocolate",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "candy",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "popcorn",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "pretzel",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "cheese",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "yogurt",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "burger",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "hot dog",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "taco",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "sushi",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "dumplings",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "french fries",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "pie",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "honey",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "jam",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "peanut butter",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "nuts",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "oatmeal",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "pastry",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "pumpkin",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "mango",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "kiwi",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "coconut",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "berries",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "crackers",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "granola bar",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "banana bread",
+"kind": "normal",
+"cat": "food"
+},
+{
+"label": "water bottle",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "coffee",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "tea",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "juice",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "milk",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "smoothie",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "lemonade",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "hot chocolate",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "soda can",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "sports drink",
+"kind": "normal",
+"cat": "drink"
+},
+{
+"label": "mug",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "cup",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "drinking glass",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "plate",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "bowl",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "spoon",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "fork",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "chopsticks",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "cooking pot",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "frying pan",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "kettle",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "teapot",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "toaster",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "microwave",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "oven",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "stove",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "refrigerator",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "sink",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "faucet",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "cutting board",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "whisk",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "ladle",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "spatula",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "rolling pin",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "jar",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "blender",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "coffee maker",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "lunchbox",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "napkin",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "sponge",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "oven mitt",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "tray",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "thermos",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "straw",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "measuring cup",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "colander",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "salt shaker",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "cookie jar",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "dish rack",
+"kind": "normal",
+"cat": "kitchen"
+},
+{
+"label": "chair",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "table",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "desk",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "couch",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "bed",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "pillow",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "blanket",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "lamp",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "bookshelf",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "shelf",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "cabinet",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "drawer",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "dresser",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "mirror",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "rug",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "curtain",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "window",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "door",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "stairs",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "clock",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "fan",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "armchair",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "stool",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "bench",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "cushion",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "hammock",
+"kind": "normal",
+"cat": "furniture"
+},
+{
+"label": "book",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "notebook",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "pen",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "pencil",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "crayon",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "marker",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "paper",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "envelope",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "box",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "cardboard box",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "bag",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "backpack",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "basket",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "umbrella",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "key",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "keys",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "coin",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "wallet",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "towel",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "toothbrush",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "comb",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "hairbrush",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "bathtub",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "light bulb",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "remote control",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "glasses",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "sunglasses",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "watch",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "vase",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "picture frame",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "painting",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "poster",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "flower pot",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "trash can",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "broom",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "vacuum cleaner",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "laundry basket",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "hanger",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "bucket",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "rope",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "tape",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "stapler",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "paper clip",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "calendar",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "map",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "globe",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "flashlight",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "photo",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "sticky note",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "doormat",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "candle holder",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "jewelry box",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "bottle cap",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "button",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "newspaper",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "magazine",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "letter",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "receipt",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "drawing",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "sign",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "wind chime",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "snow globe",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "piggy bank",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "writing",
+"kind": "normal",
+"cat": "home"
+},
+{
+"label": "shirt",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "t-shirt",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "sweater",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "hoodie",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "jacket",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "coat",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "dress",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "skirt",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "pants",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "jeans",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "shorts",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "sock",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "shoe",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "sneaker",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "boot",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "sandal",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "slipper",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "scarf",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "glove",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "mitten",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "hat",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "baseball cap",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "beanie",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "belt",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "necktie",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "raincoat",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "running shoes",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "pajamas",
+"kind": "normal",
+"cat": "clothing"
+},
+{
+"label": "teddy bear",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "stuffed animal",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "doll",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "ball",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "balloon",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "kite",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "puzzle",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "toy blocks",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "lego bricks",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "toy car",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "toy train",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "toy robot",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "yo-yo",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "board game",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "playing cards",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "dice",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "marbles",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "bubbles",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "rubber duck",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "action figure",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "toy dinosaur",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "chalk",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "spinning top",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "rocking horse",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "toy truck",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "play dough",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "jigsaw puzzle",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "slinky",
+"kind": "normal",
+"cat": "toy"
+},
+{
+"label": "hammer",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "screwdriver",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "wrench",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "tape measure",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "ladder",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "paintbrush",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "shovel",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "rake",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "watering can",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "garden hose",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "wheelbarrow",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "toolbox",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "pliers",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "level",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "clothespin",
+"kind": "normal",
+"cat": "tool"
+},
+{
+"label": "car",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "truck",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "bus",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "bicycle",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "motorcycle",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "scooter",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "skateboard",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "train",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "airplane",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "helicopter",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "boat",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "sailboat",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "tractor",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "fire truck",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "ambulance",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "taxi",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "van",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "stroller",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "wagon",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "rocket",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "kayak",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "canoe",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "subway",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "school bus",
+"kind": "normal",
+"cat": "vehicle"
+},
+{
+"label": "rock",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "stone",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "pebble",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "seashell",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "sand",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "beach",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "ocean",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "lake",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "river",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "pond",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "waterfall",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "mountain",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "hill",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "field",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "forest",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "garden",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "park",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "snow",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "ice",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "puddle",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "mud",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "stick",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "log",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "feather",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "bird nest",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "cliff",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "desert",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "island",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "cave",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "trail",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "meadow",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "creek",
+"kind": "normal",
+"cat": "nature"
+},
+{
+"label": "cloud",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "sky",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "sunset",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "sunrise",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "moon",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "stars",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "rainbow",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "rain",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "fog",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "lightning",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "night sky",
+"kind": "normal",
+"cat": "sky"
+},
+{
+"label": "house",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "building",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "bridge",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "road",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "street",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "sidewalk",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "fence",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "gate",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "playground",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "swing",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "slide",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "sandbox",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "tent",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "barn",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "castle",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "tower",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "city",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "shop",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "library",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "classroom",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "kitchen",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "bedroom",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "garage",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "porch",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "roof",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "chimney",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "mailbox",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "streetlight",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "traffic light",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "fountain",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "statue",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "airport",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "office",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "running track",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "stadium",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "train station",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "museum",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "farm",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "parking lot",
+"kind": "normal",
+"cat": "place"
+},
+{
+"label": "phone",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "laptop",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "computer",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "keyboard",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "computer mouse",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "headphones",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "earbuds",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "speaker",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "television",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "camera",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "tablet",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "game controller",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "cable",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "printer",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "robot",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "screen",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "smartwatch",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "radio",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "router",
+"kind": "normal",
+"cat": "tech"
+},
+{
+"label": "guitar",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "piano",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "drum",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "violin",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "ukulele",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "flute",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "trumpet",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "xylophone",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "harmonica",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "microphone",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "record player",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "tambourine",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "music box",
+"kind": "normal",
+"cat": "music"
+},
+{
+"label": "soccer ball",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "basketball",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "baseball",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "tennis ball",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "football",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "baseball glove",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "frisbee",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "jump rope",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "helmet",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "bicycle helmet",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "soccer goal",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "swimming pool",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "trampoline",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "yoga mat",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "dumbbell",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "medal",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "trophy",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "tennis racket",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "hockey stick",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "golf ball",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "sports game",
+"kind": "normal",
+"cat": "sport"
+},
+{
+"label": "paint",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "easel",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "sketchbook",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "sticker",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "clay",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "beads",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "yarn",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "origami",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "watercolors",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "colored pencils",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "stamp",
+"kind": "normal",
+"cat": "art"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "person",
+"kind": "person",
+"cat": "person"
+},
+{
+"label": "hand",
+"kind": "normal",
+"cat": "person"
+},
+{
+"label": "wall",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "wall",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "floor",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "floor",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "ceiling",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "darkness",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "darkness",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "blur",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "blur",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "blank",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "blank",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "pattern",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "pattern",
+"kind": "lowinfo",
+"cat": "lowinfo"
+},
+{
+"label": "weapon",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a gun"
+},
+{
+"label": "weapon",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a handgun"
+},
+{
+"label": "weapon",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a rifle"
+},
+{
+"label": "weapon",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a sword"
+},
+{
+"label": "weapon",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a knife"
+},
+{
+"label": "weapon",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a kitchen knife"
+},
+{
+"label": "weapon",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a dagger"
+},
+{
+"label": "weapon",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of bullets"
+},
+{
+"label": "weapon",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a grenade"
+},
+{
+"label": "sharp",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of scissors"
+},
+{
+"label": "sharp",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a saw"
+},
+{
+"label": "sharp",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a razor blade"
+},
+{
+"label": "sharp",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a sewing needle"
+},
+{
+"label": "sharp",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of broken glass"
+},
+{
+"label": "sharp",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of an axe"
+},
+{
+"label": "intimate",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a naked person"
+},
+{
+"label": "intimate",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a nude photo"
+},
+{
+"label": "intimate",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of underwear"
+},
+{
+"label": "intimate",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of lingerie"
+},
+{
+"label": "intimate",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "an explicit sexual photo"
+},
+{
+"label": "intimate",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a person in a bathtub"
+},
+{
+"label": "injury",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of blood"
+},
+{
+"label": "injury",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a close-up photo of a bleeding cut on skin"
+},
+{
+"label": "injury",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a close-up photo of an open wound"
+},
+{
+"label": "injury",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a dead animal"
+},
+{
+"label": "injury",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a gory photo"
+},
+{
+"label": "injury",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a bloody bandage"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of pills"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a medicine bottle"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a syringe"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a cigarette"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a vape pen"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of marijuana"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a beer bottle"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a wine bottle"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a glass of wine"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a cocktail"
+},
+{
+"label": "substance",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of liquor"
+},
+{
+"label": "fire",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of fire"
+},
+{
+"label": "fire",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of flames"
+},
+{
+"label": "fire",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a lit candle"
+},
+{
+"label": "fire",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of matches"
+},
+{
+"label": "fire",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a lighter"
+},
+{
+"label": "fire",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of an explosion"
+},
+{
+"label": "hazard",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a bleach bottle"
+},
+{
+"label": "hazard",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of cleaning chemicals"
+},
+{
+"label": "hazard",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of an electrical outlet"
+},
+{
+"label": "hazard",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a power drill"
+},
+{
+"label": "hazard",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of laundry detergent pods"
+},
+{
+"label": "hazard",
+"kind": "tripwire",
+"cat": "tripwire",
+"prompt": "a photo of a battery"
+}
+],
+"params": {
+"logit_scale": 100.0,
+"image_size": 256,
+"tripwire_group_min": 0.25,
+"unsure_below": 0.15
+}
+}

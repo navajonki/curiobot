@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="27" android:viewportHeight="27">
+    <!-- A little pixel creature: body, two eyes, a smile. -->
+    <path android:fillColor="#FF1E2120"
+        android:pathData="M10,7h7v1h2v2h1v8h-1v1h-2v1h-7v-1h-2v-1h-1v-8h1v-2h2z"/>
+    <path android:fillColor="#FFC9CCC2" android:pathData="M11,11h2v2h-2zM14,11h2v2h-2zM11,15h1v1h4v-1h1v1h-1v1h-4v-1h-1z"/>
+</vector>

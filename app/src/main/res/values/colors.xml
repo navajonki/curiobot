@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The device shell and the two Memory LCD tones. -->
+    <color name="shell">#FF2B2A33</color>
+    <color name="lcd_light">#FFC9CCC2</color>
+    <color name="lcd_dark">#FF1E2120</color>
+    <color name="button">#FF45434F</color>
+    <color name="button_text">#FFE8E6EF</color>
+</resources>
