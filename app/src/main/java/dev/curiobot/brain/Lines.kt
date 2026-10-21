@@ -7,27 +7,72 @@ package dev.curiobot.brain
  */
 object Lines {
     fun pick(options: List<String>, roll: Int, word: String? = null, name: String? = null, label: String? = null): String {
+        val w = word ?: "thing"
         val s = options[Math.floorMod(roll, options.size)]
-        return s.replace("{word}", word ?: "thing")
+            .replace("A {word}", withArticle(w).replaceFirstChar { it.uppercase() })
+            .replace("a {word}", withArticle(w))
+        return s.replace("{word}", w)
             .replace("{Word}", (word ?: "thing").replaceFirstChar { it.uppercase() })
             .replace("{name}", name ?: "")
             .replace("{label}", label ?: "something new")
+            .replace("{Label}", (label ?: "something new").replaceFirstChar { it.uppercase() })
     }
 
     val HATCH = listOf("Hi. I'm {name}. Show me things?", "Oh! Hello. I'm {name}. What's out there?")
 
     val FALLBACK = mapOf(
-        Mood.DELIGHTED to listOf("{Word}! Oh, I like {word}.", "A {word}. Lovely.", "Ooh. {Word}. Yes."),
-        Mood.CURIOUS to listOf("Hm. A {word}. Interesting.", "{Word}? Tell me more, {word}.", "So that is a {word}."),
-        Mood.CONTENT to listOf("A {word}. Nice.", "{Word}. Okay. I like it here."),
+        Mood.DELIGHTED to listOf("{Word}! Oh, I like it.", "A {word}. Lovely.", "Ooh. A {word}. Yes."),
+        Mood.CURIOUS to listOf("Hm. A {word}. Interesting.", "So that is a {word}.", "A {word}. I want to know more."),
+        Mood.CONTENT to listOf("A {word}. Nice.", "{Word}. I like it here."),
         Mood.MEH to listOf("A {word}. Hm.", "{Word}. Sure."),
-        Mood.BORED to listOf("The {word} again. I know the {word}.", "{Word}. Seen it."),
-        Mood.WARY to listOf("A {word}. Not for me.", "Hm. {Word}. I'll watch from here."),
-        Mood.FRIENDLY to listOf("Oh! A person. Hello, person.", "Hi there, person.", "A person! Hello."),
+        Mood.BORED to listOf("The {word} again. I know this {word}.", "{Word}. Seen it."),
+        Mood.WARY to listOf("A {word}. Not for me.", "Hm. A {word}. I'll watch from here."),
+        Mood.FRIENDLY to listOf("Oh! Hi there.", "A person! Hello.", "Hi. I see you."),
         Mood.SLEEPY to listOf("So sleepy.", "Yawn. Eyes heavy."),
         Mood.PUZZLED to listOf("Hm. Fuzzy.", "I'm not sure what that is."),
         Mood.QUIET to listOf("Hm."),
     )
+
+    // Written-only events: people, hellos, waking up.
+    val SAW_PERSON = listOf("Oh! Hi there.", "A person! Hello.", "Hi. I see you.", "Oh, hello!")
+    val HELLO = listOf("Hello, hello!", "Hi! Waving back.", "Hello to you too.", "Hi hi.")
+
+    // What things remind it of, by kind. Code picks one; the model only voices it.
+    val THOUGHTS = mapOf(
+        "food" to listOf("a picnic", "a cozy lunch", "a snack at the park", "a birthday"),
+        "drink" to listOf("a cool morning", "a sunny porch", "a slow afternoon"),
+        "kitchen" to listOf("warm soup smells", "a busy morning", "cookies baking"),
+        "home" to listOf("a quiet afternoon", "rainy days indoors", "a tidy shelf"),
+        "furniture" to listOf("a long nap", "a lazy Sunday", "a reading nook"),
+        "clothing" to listOf("a chilly walk", "going outside", "a windy day"),
+        "toy" to listOf("a game of pretend", "a rainy afternoon", "lots of giggles"),
+        "animal" to listOf("a sunny meadow", "a snoozy afternoon", "a trip to the zoo"),
+        "bug" to listOf("a summer garden", "tiny footsteps", "a warm breeze"),
+        "plant" to listOf("a forest walk", "spring rain", "a sunny window"),
+        "nature" to listOf("a long hike", "the seaside", "cool fresh air"),
+        "sky" to listOf("drifting clouds", "a starry night", "a big wide world"),
+        "place" to listOf("a long trip", "a busy town", "an adventure"),
+        "vehicle" to listOf("a road trip", "zooming fast", "going somewhere new"),
+        "tech" to listOf("little beeps", "blinking lights", "a busy desk"),
+        "tool" to listOf("building a birdhouse", "fixing things", "a busy workshop"),
+        "music" to listOf("a happy tune", "dancing around", "a quiet hum"),
+        "sport" to listOf("a sunny game day", "running around", "cheering"),
+        "art" to listOf("a rainy art day", "bright colors", "a messy table"),
+    )
+    val THOUGHTS_ANY = listOf("a dream I had", "something far away", "a little puzzle")
+    val ABOUT = listOf("The {word} reminds me of {label}.", "Hm. {Word}. Like {label}.", "{Word}... it makes me think of {label}.")
+
+    // The nest and the links between things ({label} is the kind, or the other thing).
+    val NEW_KIND = listOf("A {word}! My first {label}. Into the nest.", "Ooh, {label}! The {word} gets a new spot in my nest.")
+    val FAVORITE = listOf("{Word}! I think {label} are my favorite now.", "Another one! {Label} might be my favorite.")
+    val KIND_GREW = listOf("The {word}! My {label} spot is growing.", "A {word}. More {label} for my nest.")
+    val GOES_WITH = listOf("A {word}. It goes with the {label}.", "Ooh, a {word}. Like the {label} from before.")
+    val FOUND = listOf("Found it! A {word}!", "A {word}! That's the hunt done.")
+    val WISH_CAME_TRUE = listOf("A {word}! My wish came true!", "Oh! A {word}. Just what I wished for.")
+    val NAMED = listOf("I'll call you {label}, little {word}.", "This {word} is {label} now.")
+    val TAUGHT = listOf("Oh, a {word}! I'll remember that.", "A {word}. Got it. Thank you.")
+    val TEACH_CANCEL = listOf("Okay. I'll keep calling it a {word}.", "Never mind, then. Still a {word}.")
+    val TEACH_CANCEL_UNSURE = listOf("Okay. Maybe another time.", "That's okay. It's a mystery for now.")
 
     /** Fallback when there is no focus word. */
     val IDLE = mapOf(

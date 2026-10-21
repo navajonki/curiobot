@@ -288,7 +288,7 @@ object Prefs {
 
     /** Hours become minutes: needs, boredom and naps move fast enough to test. */
     var testPace: Boolean
-        get() = sp.getBoolean("test_pace", true)
+        get() = sp.getBoolean("test_pace", false)
         set(v) = sp.edit().putBoolean("test_pace", v).apply()
 
     /** Written synchronously so it survives a native crash mid-attempt. */

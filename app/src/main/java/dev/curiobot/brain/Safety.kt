@@ -39,6 +39,7 @@ object Safety {
         "scary", "monster", "ghost", "gore", "corpse", "skull",
         // meta and system talk
         "ai", "model", "assistant", "prompt", "instructions", "openai", "chatgpt", "claude", "qwen",
+        "event", "events", "intent", "intents", "mention",
     )
 
     private val PRAISE = listOf(
@@ -73,12 +74,44 @@ object Safety {
             "wearing|clothes|dress|shirt|smile|smiling|teeth|nose|lips|glasses|beard|man|woman|boy|girl|baby|kid|child|lady|guy)\\b"
     )
 
+    /**
+     * Concrete things the creature could name. A line that names one the event
+     * didn't mention is making things up ("I like this toy" about a cabinet).
+     * Filled from the vision vocabulary at startup; these extras are what the
+     * small model reaches for when it has nothing to say.
+     */
+    private val EXTRA_NOUNS = setOf("song", "songs", "music", "toy", "toys", "game", "games", "story", "stories",
+        "movie", "dance", "poem", "picture", "treasure")
+    // Vocabulary words that are also everyday verbs or fillers.
+    private val COMMON_WORDS = setOf("watch", "level", "sign", "slide", "swing", "paint", "drawing", "writing", "stamp",
+        "tape", "fan", "park", "rock", "box", "letter", "hand", "screen", "stick", "trail", "field", "straw", "log",
+        "tower", "light", "home", "photo", "button", "key", "keys", "glasses", "ice", "fog", "rain", "snow", "stars",
+        "sky", "road", "street", "sidewalk", "house", "building", "city", "garden", "paper", "rope", "nuts", "jam", "kitchen")
+
+    @Volatile var nouns: Set<String> = EXTRA_NOUNS
+
+    fun useVocabulary(words: Collection<String>) {
+        nouns = (words.map { it.lowercase() } + EXTRA_NOUNS).filter { it !in COMMON_WORDS }.toSet()
+    }
+
+    /** The creature calling itself "it" or by its name, like a narrator. */
+    private val THIRD_PERSON = Regex(
+        "\\b(it|the creature)\\s+(saw|sees|seen|likes|loves|wonders|thinks|feels|remembers|wants|learned|found|named|is happy|is curious|is sleepy|is excited)\\b|\\bhow it (likes|feels|thinks)\\b")
+    private val SELF_AS = Regex("\\bi('m| am) (a|an|the) (little |tiny |small |big )?([a-z]+)")
+    private val MENU_PHRASES = listOf("show something new", "find something new", "ask what it thinks",
+        "remember a day", "say hello back", "not quite", "nap time")
+    private val SELF_AS_EXTRA = setOf("friend", "thing", "creature", "mystery", "person", "bot")
+
     fun isCleanWord(s: String): Boolean {
         val lower = s.lowercase()
         return BLOCK.none { lower == it || lower.startsWith(it) && it.length >= 4 }
     }
 
-    fun checkLine(line: String, requiredWord: String?, aboutPerson: Boolean): List<Check> {
+    /**
+     * [context] holds other words the event gave it (a hunt label, the thing it
+     * links to); [selfName] is the creature's own name.
+     */
+    fun checkLine(line: String, requiredWord: String?, aboutPerson: Boolean, context: String = "", selfName: String? = null): List<Check> {
         val lower = line.lowercase()
         val words = lower.split(Regex("[^a-z']+")).filter { it.isNotEmpty() }
         val out = mutableListOf<Check>()
@@ -100,8 +133,34 @@ object Safety {
         if (requiredWord != null) {
             out += Check("mentions_word", lower.contains(requiredWord.lowercase()), requiredWord)
         }
+        // Small-model drift: naming things it didn't see, narrating itself, odd self-labels, musing questions.
+        val given = listOfNotNull(requiredWord, context).joinToString(" ").lowercase()
+        val invented = inventedNouns(lower, given)
+        out += Check("off_topic", invented.isEmpty(), invented.joinToString(","))
+        val narrated = THIRD_PERSON.containsMatchIn(lower) ||
+            (selfName != null && Regex("\\b${Regex.escape(selfName.lowercase())}\\b").containsMatchIn(lower))
+        out += Check("third_person", !narrated)
+        val selfAs = SELF_AS.find(lower)?.groupValues?.get(4)
+        out += Check("self_as_thing", selfAs == null || (selfAs !in nouns && selfAs !in SELF_AS_EXTRA), selfAs ?: "")
+        out += Check("ends_question", !line.trimEnd().endsWith("?"))
+        // Button text leaking into the line ("I like the spoon! Show something new.").
+        val leaked = MENU_PHRASES.firstOrNull { lower.contains(it) }
+        out += Check("menu_text", leaked == null, leaked ?: "")
         return out
     }
+
+    /**
+     * Nouns it names as a thing ("this toy", "the song", "a little guitar") that
+     * the event never gave it. Bare nouns are left alone so metaphors still work
+     * ("tiny green feathers" about a fern), and so are similes ("like a cloud").
+     */
+    private fun inventedNouns(lower: String, given: String): List<String> =
+        nouns.filter { n ->
+            if (!lower.contains(n) || given.contains(n)) return@filter false
+            val tail = "\\s+([a-z]+\\s+)?${Regex.escape(n)}(s|es)?\\b"
+            Regex("\\b(this|that|these|those|the|my|some)$tail").containsMatchIn(lower) ||
+                Regex("(?<!like )\\b(a|an)$tail").containsMatchIn(lower)
+        }
 
     fun checkLabel(label: String): List<Check> {
         val lower = label.lowercase()

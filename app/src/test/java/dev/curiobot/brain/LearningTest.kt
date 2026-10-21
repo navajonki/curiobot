@@ -154,7 +154,8 @@ class TeachingTest {
         assertEquals(energyAfter, s.energy, 1e-9)
         assertEquals(1, s.seen["jar"]!!.count)
         assertEquals("jar", s.focusWord)
-        assertEquals(listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW, Intent.MENU), Mind.intentsFor(s, fresh = true))
+        assertEquals(listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW), Mind.intentsFor(s, fresh = true))
+        assertEquals(listOf(Intent.CORRECT, Intent.SHOW_NEW), Mind.intentsFor(s, fresh = true, canAsk = false))
     }
 
     @Test fun newEventsRequireTheRightWord() {
@@ -165,5 +166,57 @@ class TeachingTest {
         assertEquals(null, Event.Taught(MYSTERY).requiredWord)
         assertEquals("cookie jar", Event.Taught("cookie jar").requiredWord)
         assertTrue(Event.Found("apple", "something to eat").promptLine().endsWith("an apple"))
+    }
+}
+
+class NestTest {
+    private fun see(s: CreatureState, word: String, cat: String, t: Long): Event? {
+        val before = Nest.before(s)
+        val r = Mind.react(s, Seeing(Verdict.NORMAL, word, cat, 0.9, 1.0), t)
+        return Nest.change(s, before, word, cat, r.firstTime)
+    }
+
+    @Test fun buildsUpFromWhatItSees() {
+        val s = CreatureState(42, 0)
+        assertTrue(see(s, "cup", "kitchen", 1) is Event.NewKind)
+        val link = see(s, "fork", "kitchen", 2)
+        assertTrue(link is Event.GoesWith)
+        assertEquals("cup", (link as Event.GoesWith).other)
+        // the third kitchen thing makes kitchen its favorite (nothing else has 3)
+        assertTrue(see(s, "spoon", "kitchen", 3) is Event.Favorite)
+        assertEquals("kitchen", Nest.favorite(s))
+        // seeing a known word again doesn't change the nest
+        assertNull(see(s, "cup", "kitchen", 4))
+        assertTrue(see(s, "dog", "animal", 5) is Event.NewKind)
+        see(s, "cat", "animal", 6)
+        // animals reach 3: growth, not a new favorite (tied with kitchen)
+        val grew = see(s, "rabbit", "animal", 7)
+        assertTrue(grew is Event.KindGrew)
+        assertEquals(3, (grew as Event.KindGrew).n)
+        assertEquals(2, Nest.kindsFound(s))
+        assertEquals(6, Nest.thingsFound(s))
+        assertEquals(2, Nest.slots(s).first { it.kind == "kitchen" }.level)
+    }
+
+    @Test fun peopleAndMysteriesStayOutOfTheNest() {
+        val s = CreatureState(42, 0)
+        Mind.react(s, Seeing(Verdict.PERSON, "person", "person", 0.9, 0.5), 1)
+        Mind.react(s, Seeing(Verdict.NORMAL, MYSTERY, "mystery", 1.0, 1.0), 2)
+        assertEquals(0, Nest.kindsFound(s))
+        assertFalse(Intent.NEST in Mind.intentsFor(s, fresh = false))
+        Mind.react(s, Seeing(Verdict.NORMAL, "fern", "plant", 0.9, 1.0), 3)
+        assertTrue(Intent.NEST in Mind.intentsFor(s, fresh = false))
+    }
+
+    @Test fun everyKindHasATokenAndAName() {
+        for (k in Nest.KINDS) {
+            assertTrue(k, dev.curiobot.ui.Pix.NEST.containsKey(k))
+            assertTrue(k, Nest.NAMES.containsKey(k))
+            assertTrue(k, Lines.THOUGHTS.containsKey(k))
+        }
+        val cats = org.json.JSONObject(java.io.File("src/main/assets/vocab.json").readText()).getJSONArray("rows")
+            .let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
+            .filter { it.getString("kind") == "normal" }.map { it.getString("cat") }.toSet() - "person"
+        assertEquals(cats, Nest.KINDS.toSet())
     }
 }

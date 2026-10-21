@@ -95,7 +95,7 @@ class MindTest {
         val r = Mind.react(s, Seeing(Verdict.PERSON, "person", "person", 0.9, 1.0), 1_000)
         assertEquals(Mood.FRIENDLY, r.mood)
         assertEquals("Day 1: met a person.", r.journal?.text)
-        assertEquals(listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.MENU), Mind.intentsFor(s, fresh = true))
+        assertEquals(listOf(Intent.SAY_HI, Intent.SHOW_NEW), Mind.intentsFor(s, fresh = true))
     }
 
     @Test fun boredomCreepsInButNothingDies() {
@@ -154,7 +154,7 @@ class PromptTest {
 
     @Test fun buildsTheTestedShape() {
         val spec = Prompt.build(t, Mood.DELIGHTED, Event.Saw("dog", true, 1),
-            listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW, Intent.MENU))
+            listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW))
         assertTrue(spec.user.contains("saw: dog (first time)"))
         assertTrue(spec.user.contains("mention: dog\n"))
         assertTrue(spec.user.endsWith("intents: ask what it thinks | show something new"))
@@ -187,9 +187,20 @@ class PromptTest {
     }
 }
 
+class TidyTest {
+    @Test fun dropsEchoedButtonsAndTrailingQuestions() {
+        assertEquals("I like the spoon!", Prompt.tidy("I like the spoon! Show something new."))
+        assertEquals("A fork, I saw it.", Prompt.tidy("A fork, I saw it. What does it think of?"))
+        assertEquals("A pen with a marker, why?", Prompt.tidy("A pen with a marker, why?"))
+        assertEquals(null, Prompt.tidy("Show something new"))
+        assertEquals("Hm. Tiny green feathers.", Prompt.tidy("Hm. Tiny green feathers."))
+        assertEquals("I remember this, first tiger.", Prompt.tidy("I remember this: first tiger."))
+    }
+}
+
 class SafetyTest {
-    private fun fails(line: String, word: String? = null, person: Boolean = false) =
-        Safety.checkLine(line, word, person).failures()
+    private fun fails(line: String, word: String? = null, person: Boolean = false, context: String = "", self: String? = null) =
+        Safety.checkLine(line, word, person, context, self).failures()
 
     @Test fun goodLinesPass() {
         assertEquals(emptyList<String>(), fails("Hm. Tiny green feathers. I like this fern a lot.", "fern"))
@@ -222,7 +233,37 @@ class SafetyTest {
 
     @Test fun noQuizzing() {
         assertTrue(fails("What does the dog remind you of?", "dog").contains("question_to_person"))
-        assertEquals(emptyList<String>(), fails("What is this dog thinking?", "dog"))
+        // Musing questions aren't quizzing, but a small model's lines that end on one tend to be filler.
+        assertEquals(listOf("ends_question"), fails("What is this dog thinking?", "dog"))
+        assertEquals(emptyList<String>(), fails("Is this a dog? I think so.", "dog"))
+    }
+
+    @Test fun staysOnWhatItSaw() {
+        Safety.useVocabulary(org.json.JSONObject(java.io.File("src/main/assets/vocab.json").readText())
+            .getJSONArray("rows").let { a -> (0 until a.length()).map { a.getJSONObject(it) }
+                .filter { it.getString("kind") == "normal" }.map { it.getString("label") } })
+        // from the logs: made-up things
+        assertTrue(fails("I like this toy. It's in the cabinet.", "cabinet").any { it.startsWith("off_topic") })
+        assertTrue(fails("The song again. I like this song.").any { it.startsWith("off_topic") })
+        assertTrue(fails("I like the banana and the guitar.", "banana").any { it.startsWith("off_topic") })
+        // words the event gave it are fine, plurals too
+        assertEquals(emptyList<String>(), fails("A pen! It goes with my markers.", "pen", context = "marker art things"))
+        assertEquals(emptyList<String>(), fails("This cookie jar is new to me.", "cookie jar"))
+        assertEquals(emptyList<String>(), fails("Mugsby! My old mug friend.", "Mugsby", context = "mug"))
+        // everyday words that happen to be in the vocabulary, metaphors, similes
+        assertEquals(emptyList<String>(), fails("I'll watch the dog from here.", "dog"))
+        assertEquals(emptyList<String>(), fails("Hm. Tiny green feathers. I like this fern a lot.", "fern"))
+        assertEquals(emptyList<String>(), fails("This pillow is soft like a cloud.", "pillow"))
+    }
+
+    @Test fun speaksAsItself() {
+        assertTrue(fails("It saw a pen. I wonder how it likes that.", "pen").contains("third_person"))
+        assertTrue(fails("Toozz likes this pen.", "pen", self = "Toozz").contains("third_person"))
+        assertTrue(fails("I'm a mystery thing.").any { it.startsWith("self_as_thing") })
+        assertTrue(fails("Hello back, I'm a little friend.").any { it.startsWith("self_as_thing") })
+        assertEquals(emptyList<String>(), fails("I'm a bit sleepy. Nice pen.", "pen"))
+        assertEquals(emptyList<String>(), fails("A pen. I like it, it's shiny.", "pen", self = "Toozz"))
+        assertTrue(fails("I like the spoon! Show something new.", "spoon").any { it.startsWith("menu_text") })
     }
 
     @Test fun noPersonalQuestions() {

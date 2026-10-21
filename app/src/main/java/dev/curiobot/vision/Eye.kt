@@ -87,6 +87,8 @@ class Eye(ctx: Context) {
     }
 
     val vocabularySize get() = rows.count { it.kind == "normal" }
+    /** Every ordinary word the eye can say. */
+    val words: List<String> get() = rows.filter { it.kind == "normal" }.map { it.label }.distinct()
     private val catByLabel: Map<String, String> by lazy { rows.filter { it.kind == "normal" }.associate { it.label to it.cat } }
 
     fun see(photo: Bitmap): Perception {

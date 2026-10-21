@@ -134,10 +134,12 @@ class MainActivity : ComponentActivity(), Game.Host {
             setPadding(0, dp(14), 0, dp(28))
         })
 
+        // Three buttons, like the original: next cycles, ok picks, back leaves a menu.
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        for ((label, b) in listOf("◀" to Game.Button.LEFT, "●" to Game.Button.SELECT, "▶" to Game.Button.RIGHT)) {
+        for ((glyph, b) in listOf("▼" to Game.Button.NEXT, "●" to Game.Button.OK, "↩" to Game.Button.BACK)) {
+            val name = b.name.lowercase()
             val btn = Button(this).apply {
-                text = label
+                text = glyph
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.button_text))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
                 background = GradientDrawable().apply {
@@ -146,10 +148,24 @@ class MainActivity : ComponentActivity(), Game.Host {
                 }
                 stateListAnimator = null
                 setOnClickListener { game.press(b) }
-                contentDescription = when (b) { Game.Button.LEFT -> "Previous"; Game.Button.SELECT -> "Select"; Game.Button.RIGHT -> "Next" }
+                contentDescription = name
             }
-            val size = if (b == Game.Button.SELECT) dp(84) else dp(68)
-            row.addView(btn, LinearLayout.LayoutParams(size, size).apply { setMargins(dp(12), 0, dp(12), 0) })
+            val size = if (b == Game.Button.OK) dp(84) else dp(68)
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                addView(btn, LinearLayout.LayoutParams(size, size))
+                addView(TextView(this@MainActivity).apply {
+                    text = name
+                    setTextColor(0xFF8D8A99.toInt())
+                    typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                    gravity = Gravity.CENTER
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+                    setPadding(0, dp(6), 0, 0)
+                })
+            }
+            row.addView(cell, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { setMargins(dp(12), 0, dp(12), 0) })
         }
         root.addView(row)
         root.addView(TextView(this).apply {

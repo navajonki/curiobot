@@ -12,7 +12,7 @@ camera ─► Eye (MobileCLIP-S0 image encoder + fixed vocabulary) ─► a word
                                                                      │
 buttons ─► Game ─► Mind (seed traits, needs, reactions, journal) ◄───┘
                      │
-                     ├─► Prompt ─► TextModel (Qwen3-0.6B, LiteRT-LM) ─► line + 4 labels
+                     ├─► Prompt ─► TextModel (Qwen3-0.6B, LiteRT-LM) ─► line + labels
                      │                                                  │
                      └────────────── Safety checks ◄────────────────────┘
                                          │ (retry once, then a written fallback)
@@ -30,12 +30,26 @@ buttons ─► Game ─► Mind (seed traits, needs, reactions, journal) ◄─�
   never for people).
 - **No guilt.** Neglect makes it bored and quiet, never sick. Low energy brings a
   nap, which is also the natural end of a session.
+- **Something gets built.** Each kind of thing it finds earns a token in its nest
+  (`brain/Nest.kt`), tokens grow as more of that kind turn up, a favorite emerges,
+  and new things get linked to ones it saw before. Hunts, a daily wish, teaching
+  ("Not quite") and nicknames feed the same memory.
+- **Grounded lines.** Code picks what to talk about (the word, the link, the
+  thought); the model only voices it. Lines that name things it didn't see, talk
+  about itself as "it", or trail off in a question are rejected. Anything about a
+  person, hellos and waking up use written lines only.
+
+## Controls
+
+Three buttons, like the original Tamagotchi: **next** cycles the options, **ok**
+picks one, **back** leaves the current menu (a photo's menu, teaching, the nest,
+the camera). Menus other than home show a small header with where you are.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `app/src/main/java/dev/curiobot/brain/` | Portable creature logic (no Android imports): `Genome`, `CreatureState`, `Mind`, `Prompt`, `Safety`, `Lines`, `EmbeddingMemory` |
+| `app/src/main/java/dev/curiobot/brain/` | Portable creature logic (no Android imports): `Genome`, `CreatureState`, `Mind`, `Nest`, `Hunts`, `Things`, `Prompt`, `Safety`, `Lines` |
 | `.../vision/Eye.kt` | Image encoder + vocabulary matching and tripwires |
 | `.../text/` | `TextModel` (LiteRT-LM, GPU then CPU) and `ModelStore` (download) |
 | `.../ui/` | 1-bit renderer, procedural sprites, dithered viewfinder |
@@ -63,7 +77,8 @@ Dev builds stream structured events (button presses, perception scores, prompts,
 raw model output, every safety check, timings, vitals, crashes) to the
 `curiobot_logs` table in Supabase via the insert-only `curiobot_ingest` function.
 Events queue on the phone and upload when online. Toggle upload in the dev panel
-(hold the screen).
+(hold the screen), which can also show the creature's files: journal, nest,
+words seen, the objects it recognizes, and the raw state file.
 
 ## Rebuilding the vocabulary
 

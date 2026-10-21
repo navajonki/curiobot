@@ -44,10 +44,12 @@ enum class Intent(val id: String, val ask: String, val labels: List<String>, val
     NAP("nap", "nap", listOf("Nap time", "Time to rest")),
     SAY_HI("say_hi", "say hello back", listOf("Say hello", "Wave hello")),
     CORRECT("correct", "", listOf("Not quite"), modelLabel = false),
-    MENU("menu", "", listOf("Other things"), modelLabel = false),
+    /** Only on the dozing cue now; the back button covers everything else. */
+    MENU("menu", "", listOf("Not now"), modelLabel = false),
     HUNT("hunt", "", listOf("Go on a hunt"), modelLabel = false),
     HUNT_SKIP("hunt_skip", "", listOf("A different hunt"), modelLabel = false),
     WISH("wish", "", listOf("What's your wish?"), modelLabel = false),
+    NEST("nest", "", listOf("Look at my nest"), modelLabel = false),
     TEACH_PICK("teach_pick", "", listOf("{word}"), modelLabel = false),
     TEACH_MORE("teach_more", "", listOf("Other guesses"), modelLabel = false),
     TEACH_NONE("teach_none", "", listOf("None of these"), modelLabel = false),
@@ -68,58 +70,101 @@ const val MYSTERY = "mystery thing"
 
 fun withArticle(w: String) = (if (w.isNotEmpty() && w[0].lowercaseChar() in "aeiou") "an " else "a ") + w
 
-/** What happened this turn, as the text model hears it. */
+/**
+ * What happened this turn, as the text model hears it. Event lines are written
+ * in the creature's own voice so the model answers as "I", not "it".
+ */
 sealed class Event {
     abstract val requiredWord: String?
     open val aboutPerson: Boolean = false
+    /**
+     * Written lines only, never the model. Anything about a person (no risk of
+     * describing them), plus events with nothing concrete to talk about, where
+     * a small model tends to make things up.
+     */
+    open val written: Boolean = false
+    /** Extra words the line may use besides [requiredWord] (a hunt label, a thought). */
+    open val context: String = ""
     abstract fun promptLine(): String
 
     data class Saw(val word: String, val firstTime: Boolean, val count: Int, val nickname: String? = null) : Event() {
         override val requiredWord get() = nickname ?: word
-        override fun promptLine() = if (nickname != null) "saw: $nickname the $word (an old friend, seen $count times)"
+        override val context get() = if (nickname != null) "$word old friend" else word
+        override fun promptLine() = if (nickname != null) "saw: $nickname the $word (my old friend, seen $count times)"
         else "saw: $word (" + (if (firstTime) "first time" else "seen $count times") + ")"
     }
     data class SawPerson(val firstTime: Boolean) : Event() {
         override val requiredWord: String? get() = null
         override val aboutPerson get() = true
-        override fun promptLine() = "saw: a person (greet them, never describe them)"
+        override val written get() = true
+        override fun promptLine() = "saw: a person"
     }
-    data class About(val word: String) : Event() {
+    /** "What do you think?": code picks the thought, the model only voices it. */
+    data class About(val word: String, val thought: String) : Event() {
         override val requiredWord get() = word
-        override fun promptLine() = "event: saying what the $word reminds it of"
+        override val context get() = thought
+        override fun promptLine() = "event: the $word reminds me of $thought"
     }
     data class Taught(val word: String) : Event() {
         /** "None of these" leaves it without a word, so there is nothing to require. */
         val unnamed get() = word == MYSTERY
         override val requiredWord get() = word.takeUnless { unnamed }
+        override val written get() = unnamed
         override fun promptLine() =
-            if (unnamed) "event: has no word for this thing yet, but will remember how it looks"
-            else "event: learned that this is really ${withArticle(word)}, and will remember it"
+            if (unnamed) "event: I have no word for this thing yet, but I will remember how it looks"
+            else "event: I just learned this is really ${withArticle(word)}, and I will remember it"
     }
     data class Found(val word: String, val huntLabel: String) : Event() {
         override val requiredWord get() = word
-        override fun promptLine() = "event: was hunting for $huntLabel and found ${withArticle(word)}"
+        override val context get() = huntLabel
+        override fun promptLine() = "event: I was hunting for $huntLabel and found ${withArticle(word)}"
     }
     data class WishGranted(val word: String, val wishLabel: String) : Event() {
         override val requiredWord get() = word
-        override fun promptLine() = "event: its wish for $wishLabel came true when it saw ${withArticle(word)}"
+        override val context get() = wishLabel
+        override fun promptLine() = "event: my wish for $wishLabel came true, I saw ${withArticle(word)}"
     }
     data class Named(val word: String, val nickname: String) : Event() {
         override val requiredWord get() = nickname
-        override fun promptLine() = "event: named this $word $nickname"
+        override val context get() = word
+        override fun promptLine() = "event: I named this $word $nickname"
+    }
+    // The bigger picture (see [Nest]). [kinds] reads like "kitchen things".
+    data class NewKind(val word: String, val kinds: String) : Event() {
+        override val requiredWord get() = word
+        override val context get() = "$kinds nest"
+        override fun promptLine() = "event: the $word starts a new spot in my nest, for $kinds"
+    }
+    data class Favorite(val word: String, val kinds: String) : Event() {
+        override val requiredWord get() = word
+        override val context get() = kinds
+        override fun promptLine() = "event: after the $word, I think $kinds are my favorite"
+    }
+    data class KindGrew(val word: String, val kinds: String, val n: Int) : Event() {
+        override val requiredWord get() = word
+        override val context get() = "$kinds nest"
+        override fun promptLine() = "event: the $word makes $n $kinds in my nest"
+    }
+    data class GoesWith(val word: String, val other: String, val kinds: String) : Event() {
+        override val requiredWord get() = word
+        override val context get() = "$other $kinds"
+        override fun promptLine() = "event: the $word goes with the $other I saw before"
     }
     object Hello : Event() {
         override val requiredWord: String? get() = null
         override val aboutPerson get() = true
+        override val written get() = true
         override fun promptLine() = "event: the person said hello"
     }
     data class Recall(val entry: JournalEntry) : Event() {
         override val requiredWord get() = entry.word?.takeIf { it != "person" }
-        override fun promptLine() = "event: remembering this: " + entry.text.replace(Regex("^Day \\d+: "), "")
+        override val context get() = entry.text
+        override fun promptLine() = "event: I remember this: " + entry.text.replace(Regex("^Day \\d+: "), "")
     }
     object Woke : Event() {
         override val requiredWord: String? get() = null
-        override fun promptLine() = "event: just woke up from a nap"
+        override val written get() = true
+        override fun promptLine() = "event: I just woke up from a nap"
     }
 }
 
@@ -237,18 +282,24 @@ object Mind {
     }
 
     /** The options to offer. [fresh] is true right after something was seen or taught. */
-    fun intentsFor(s: CreatureState, fresh: Boolean): List<Intent> {
+    /**
+     * The options on screen. Home is the idle list; [fresh] means the photo
+     * menu for what it just saw, which the back button leaves.
+     * [canAsk] drops "what do you think" once it has been asked enough.
+     */
+    fun intentsFor(s: CreatureState, fresh: Boolean, canAsk: Boolean = true): List<Intent> {
         if (s.asleep) return if (s.dreamShown) listOf(Intent.LET_SLEEP, Intent.WAKE)
             else listOf(Intent.LET_SLEEP, Intent.PEEK, Intent.WAKE)
-        if (fresh && s.focusKind == "person") return listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.MENU)
-        if (fresh && s.focusWord != null) return listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW, Intent.MENU)
+        if (fresh && s.focusKind == "person") return listOf(Intent.SAY_HI, Intent.SHOW_NEW)
+        if (fresh && s.focusWord != null) return listOfNotNull(Intent.ASK_ABOUT.takeIf { canAsk }, Intent.CORRECT, Intent.SHOW_NEW)
         val out = mutableListOf<Intent>()
         if (s.energy < TIRED) out += Intent.NAP
         out += Intent.SHOW_NEW
         out += if (s.huntId != null) Intent.HUNT_SKIP else Intent.HUNT
         if (s.wishId != null && !s.wishGranted) out += Intent.WISH
+        if (Nest.kindsFound(s) > 0) out += Intent.NEST
         if (s.journal.isNotEmpty()) out += Intent.REMEMBER
-        return out.take(4)
+        return out
     }
 
     /** Small costs for actions other than seeing. */

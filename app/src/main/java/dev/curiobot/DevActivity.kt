@@ -40,6 +40,9 @@ class DevActivity : ComponentActivity() {
             Telemetry.log("pref_backend", JSONObject().put("backend", Prefs.backend))
         }
         button("Run self-test (bundled photos)") { selfTest() }
+        button("View its files (journal, nest, memory)") {
+            detail.text = game.filesText()
+        }
         button("Show last turn") {
             detail.text = game.lastTurn?.toString(2) ?: "No turn yet."
         }

@@ -42,7 +42,7 @@ object Genome {
         "shy" to listOf("soft, says hm a lot", "whispery and careful"),
         "bold" to listOf("blunt and funny", "excited, short words"),
         "calm" to listOf("slow and dreamy", "soft, says hm a lot"),
-        "playful" to listOf("sing-song", "excited, short words"),
+        "playful" to listOf("bouncy and bright", "excited, short words"),
         "dreamy" to listOf("slow and dreamy", "whispery and careful"),
         "fussy" to listOf("blunt and funny", "soft, says hm a lot"),
     )

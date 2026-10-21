@@ -30,7 +30,14 @@ data class UiState(
     val wish: Boolean = false,
     /** A frozen, dithered photo shown while the creature looks at it. */
     val frozen: BooleanArray? = null,
+    /** Header over the options inside a menu that Back leaves. Null on the home menu. */
+    val title: String? = null,
+    /** When set, the screen shows the nest instead of the creature. */
+    val nest: NestView? = null,
 )
+
+/** The nest screen: a token per kind of thing, filled in as they're found. */
+data class NestView(val levels: Map<String, Int>, val headline: String, val detail: String)
 
 /**
  * A 400x240 1-bit screen, like a Sharp Memory LCD: two tones only, no
@@ -69,6 +76,7 @@ class Lcd {
             textAt(dots("looking", tick), 8, H - 5, small, light)
             return
         }
+        ui.nest?.let { nest(it, ui.title); return }
         // creature
         if (sprite == null || spriteSeed != ui.spriteSeed) {
             sprite = CreatureSprite(ui.spriteSeed); spriteSeed = ui.spriteSeed
@@ -87,35 +95,101 @@ class Lcd {
             if (p > 8) textAt("Z", 112, 30 - (p - 8) / 3, text, dark)
         }
         // speech bubble
-        val bx = 124; val by = 22; val bw = W - bx - 6; val bh = 110
+        val bx = 124; val by = 24; val bw = W - bx - 6; val bh = 96
         outline(bx, by, bw, bh)
         // little tail toward the creature
         bar(bx - 6, by + 40, 6, 2, dark); bar(bx - 3, by + 37, 3, 3, dark)
         val line = if (ui.phase == Phase.THINKING) dots("", tick) else ui.line
         val maxChars = ((bw - 16) / charW).toInt()
-        wrap(line, maxChars).take(6).forEachIndexed { i, l -> textAt(l, bx + 8, by + 18 + i * 16, text, dark) }
-        // options
-        val top = 138
+        wrap(line, maxChars).take(5).forEachIndexed { i, l -> textAt(l, bx + 8, by + 18 + i * 16, text, dark) }
+        header(ui.title, 124)
+        options(ui, top = 140)
+        if (ui.phase == Phase.ERROR && ui.status.isNotEmpty()) textAt(ui.status, 8, H - 4, small, dark)
+    }
+
+    /** Up to four rows; longer lists scroll with the cursor and show arrows. */
+    private fun options(ui: UiState, top: Int) {
         val rowH = 25
-        ui.options.forEachIndexed { i, opt ->
-            val y = top + i * rowH
+        val n = ui.options.size
+        val first = if (n <= ROWS) 0 else (ui.cursor - (ROWS - 1)).coerceIn(0, n - ROWS)
+        for (row in 0 until minOf(ROWS, n)) {
+            val i = first + row
+            val y = top + row * rowH
+            val opt = ui.options[i]
             if (i == ui.cursor) {
-                bar(4, y, W - 8, rowH - 3, dark)
+                bar(4, y, W - 24, rowH - 3, dark)
                 textAt("> $opt", 12, y + 16, text, light)
             } else {
                 textAt("  $opt", 12, y + 16, text, dark)
             }
         }
-        if (ui.phase == Phase.ERROR && ui.status.isNotEmpty()) textAt(ui.status, 8, H - 4, small, dark)
+        if (first > 0) arrow(W - 13, top + 4, up = true)
+        if (first + ROWS < n) arrow(W - 13, top + ROWS * rowH - 12, up = false)
+    }
+
+    private fun arrow(x: Int, y: Int, up: Boolean) {
+        for (r in 0 until 5) {
+            val w = if (up) r * 2 + 1 else (4 - r) * 2 + 1
+            bar(x + 4 - w / 2, y + r, w, 1, dark)
+        }
+    }
+
+    /** A tab with where you are, and a reminder that Back leaves it. */
+    private fun header(title: String?, y: Int) {
+        if (title == null) return
+        val tw = small.measureText(title).toInt()
+        bar(4, y, tw + 12, 14, dark)
+        textAt(title, 10, y + 11, small, light)
+        val hint = "back to leave"
+        val hx = W - 8 - small.measureText(hint).toInt()
+        var x = tw + 22
+        while (x < hx - 6) { bar(x, y + 7, 2, 1, dark); x += 4 }
+        textAt(hint, hx, y + 11, small, dark)
+    }
+
+    private fun nest(v: NestView, title: String?) {
+        textAt(v.headline, 8, 36, text, dark)
+        val cw = 56; val ch = 48; val x0 = 4; val y0 = 42
+        for ((i, kind) in dev.curiobot.brain.Nest.KINDS.withIndex()) {
+            val cx = x0 + (i % 7) * cw
+            val cy = y0 + (i / 7) * ch
+            val level = v.levels[kind] ?: 0
+            val ix = cx + 10; val iy = cy + 1
+            if (level == 0) {
+                // an empty spot, still to be found
+                var d = 0
+                while (d < 36) {
+                    bar(ix + d, iy, 2, 1, dark); bar(ix + d, iy + 35, 2, 1, dark)
+                    bar(ix, iy + d, 1, 2, dark); bar(ix + 35, iy + d, 1, 2, dark)
+                    d += 5
+                }
+            } else {
+                Pix.NEST[kind]?.let { rows ->
+                    for (y in rows.indices) for (x in rows[y].indices) if (rows[y][x] == '#') bar(ix + x * 3, iy + y * 3, 3, 3, dark)
+                }
+            }
+            for (p in 0 until 3) {
+                val px = cx + 17 + p * 8
+                if (p < level) bar(px, cy + 40, 5, 5, dark) else if (level > 0) outline1(px, cy + 40, 5, 5)
+            }
+        }
+        wrap(v.detail, ((W - 16) / small.measureText("M")).toInt()).take(1).forEach { textAt(it, 8, 204, small, dark) }
+        header(title, 220)
     }
 
     private fun statusBar(ui: UiState) {
         textAt(ui.name, 6, 13, text, dark)
         if (ui.wish) icon(Pix.STAR, 10 + text.measureText(ui.name).toInt(), 4)
-        icon(Pix.EYE, 236, 5)
-        meter(246, 6, 54, ui.satisfaction)
-        icon(Pix.BOLT, 316, 5)
-        meter(324, 6, 54, ui.energy)
+        // Two labeled meters, right-aligned: fun fills as it sees new things, energy drops as it looks.
+        val mw = 48
+        val eMeter = W - 6 - mw
+        val eLabel = eMeter - 5 - small.measureText("energy").toInt()
+        val fMeter = eLabel - 12 - mw
+        val fLabel = fMeter - 5 - small.measureText("fun").toInt()
+        textAt("fun", fLabel, 12, small, dark)
+        meter(fMeter, 6, mw, ui.satisfaction)
+        textAt("energy", eLabel, 12, small, dark)
+        meter(eMeter, 6, mw, ui.energy)
         bar(0, 18, W, 2, dark)
     }
 
@@ -138,8 +212,8 @@ class Lcd {
     private fun viewfinder(frame: BooleanArray?, tick: Int) {
         if (frame != null) drawFrame(frame) else centered(dots("opening eyes", tick), 120, text)
         bar(0, H - 20, W, 20, dark)
-        textAt("< back", 8, H - 6, text, light)
-        textAt("(o) show it", W - 8 - (text.measureText("(o) show it")).toInt(), H - 6, text, light)
+        textAt("(o) show it", ((W - text.measureText("(o) show it")) / 2).toInt(), H - 6, text, light)
+        textAt("back", W - 8 - (text.measureText("back")).toInt(), H - 6, text, light)
     }
 
     private fun drawFrame(frame: BooleanArray) {
@@ -159,6 +233,11 @@ class Lcd {
     private fun meter(x: Int, y: Int, w: Int, v: Double) {
         outline(x, y, w, 7)
         bar(x + 2, y + 2, ((w - 4) * v.coerceIn(0.0, 1.0)).toInt(), 3, dark)
+    }
+
+    private fun outline1(x: Int, y: Int, w: Int, h: Int) {
+        bar(x, y, w, 1, dark); bar(x, y + h - 1, w, 1, dark)
+        bar(x, y, 1, h, dark); bar(x + w - 1, y, 1, h, dark)
     }
 
     private fun outline(x: Int, y: Int, w: Int, h: Int) {
@@ -185,6 +264,7 @@ class Lcd {
     companion object {
         const val W = 400
         const val H = 240
+        const val ROWS = 4
         const val LIGHT = 0xFFC9CCC2.toInt()
         const val DARK = 0xFF1E2120.toInt()
 

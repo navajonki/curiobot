@@ -18,25 +18,30 @@ class ModelLoopTest {
 
     @Test fun exportFixtures() {
         val out = JSONArray()
-        val intentsFresh = listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW, Intent.MENU)
-        val intentsIdle = listOf(Intent.SHOW_NEW, Intent.HUNT, Intent.WISH, Intent.REMEMBER)
-        val intentsPerson = listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.MENU)
+        val intentsFresh = listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW)
+        val intentsAsked = listOf(Intent.CORRECT, Intent.SHOW_NEW)
+        val intentsIdle = listOf(Intent.SHOW_NEW, Intent.HUNT, Intent.WISH, Intent.NEST, Intent.REMEMBER)
+        // Person, hello and waking are written lines only, so they aren't here.
         val cases = listOf(
             Triple(Mood.DELIGHTED, Event.Saw("dog", true, 1), intentsFresh),
             Triple(Mood.CURIOUS, Event.Saw("bicycle", true, 1), intentsFresh),
             Triple(Mood.DELIGHTED, Event.Saw("banana", true, 1), intentsFresh),
             Triple(Mood.BORED, Event.Saw("chair", false, 6), intentsFresh),
-            Triple(Mood.FRIENDLY, Event.SawPerson(true), intentsPerson),
-            Triple(Mood.CURIOUS, Event.About("mug"), intentsFresh),
+            Triple(Mood.CURIOUS, Event.Saw("pen", true, 1), intentsFresh),
+            Triple(Mood.CURIOUS, Event.About("mug", "a slow afternoon"), intentsFresh),
+            Triple(Mood.CURIOUS, Event.About("jacket", "a chilly walk"), intentsAsked),
             Triple(Mood.CONTENT, Event.Recall(JournalEntry(0, "tiger", "delighted", "Day 2: first tiger. Loved it.")), intentsIdle),
             Triple(Mood.CURIOUS, Event.Taught("cookie jar"), intentsFresh),
-            Triple(Mood.CURIOUS, Event.Taught(MYSTERY), intentsFresh),
             Triple(Mood.DELIGHTED, Event.Found("pillow", "something soft"), intentsFresh),
             Triple(Mood.DELIGHTED, Event.Found("spoon", "a spoon"), intentsFresh),
             Triple(Mood.DELIGHTED, Event.WishGranted("apple", "something to eat"), intentsFresh),
             Triple(Mood.DELIGHTED, Event.Named("mug", "Mugsby"), intentsFresh),
             Triple(Mood.CONTENT, Event.Saw("mug", false, 5, "Mugsby"), intentsFresh),
-            Triple(Mood.CONTENT, Event.Woke, intentsIdle),
+            Triple(Mood.DELIGHTED, Event.NewKind("cup", "kitchen things"), intentsFresh),
+            Triple(Mood.CURIOUS, Event.GoesWith("pen", "marker", "art things"), intentsFresh),
+            Triple(Mood.CURIOUS, Event.GoesWith("fork", "Mugsby", "kitchen things"), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.KindGrew("rabbit", "animals", 3), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.Favorite("spoon", "kitchen things"), intentsFresh),
         )
         for (seed in listOf(11L, 222L, 3333L)) {
             val t = Genome.traitsFor(seed)
@@ -48,6 +53,8 @@ class ModelLoopTest {
                     put("user", spec.user)
                     put("required_word", spec.requiredWord ?: JSONObject.NULL)
                     put("about_person", spec.aboutPerson)
+                    put("context", spec.context)
+                    put("self_name", spec.selfName ?: JSONObject.NULL)
                     put("n", spec.intents.count { it.modelLabel })
                 })
             }
@@ -59,6 +66,9 @@ class ModelLoopTest {
         val f = File(buildDir, "model_outputs.json")
         assumeTrue("run tools/model/run_fixtures.py first", f.exists())
         val items = JSONArray(f.readText())
+        Safety.useVocabulary(JSONObject(File("src/main/assets/vocab.json").readText()).getJSONArray("rows")
+            .let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
+            .filter { it.getString("kind") == "normal" }.map { it.getString("label") })
         var wellFormed = 0
         var linesOk = 0
         var labelsOk = 0
@@ -72,7 +82,8 @@ class ModelLoopTest {
             if (p.wellFormed) wellFormed++
             val checks = p.line?.let {
                 Safety.checkLine(it, o.optString("required_word").takeIf { w -> !o.isNull("required_word") && w.isNotEmpty() },
-                    o.getBoolean("about_person"))
+                    o.getBoolean("about_person"), o.optString("context", ""),
+                    o.optString("self_name").takeIf { w -> !o.isNull("self_name") && w.isNotEmpty() })
             }
             val fails = checks?.failures() ?: listOf("no_line")
             if (fails.isEmpty()) linesOk++
