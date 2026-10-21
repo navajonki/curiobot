@@ -291,6 +291,15 @@ object Prefs {
         get() = sp.getBoolean("test_pace", true)
         set(v) = sp.edit().putBoolean("test_pace", v).apply()
 
+    /** Written synchronously so it survives a native crash mid-attempt. */
+    var gpuAttemptInFlight: Boolean
+        get() = sp.getBoolean("gpu_in_flight", false)
+        set(v) { sp.edit().putBoolean("gpu_in_flight", v).commit() }
+
+    var gpuBroken: Boolean
+        get() = sp.getBoolean("gpu_broken", false)
+        set(v) { sp.edit().putBoolean("gpu_broken", v).commit() }
+
     /** "auto" tries the GPU first, then CPU. */
     var backend: String
         get() = sp.getString("backend", "auto") ?: "auto"

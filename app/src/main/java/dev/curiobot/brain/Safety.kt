@@ -91,6 +91,8 @@ object Safety {
         out += Check("dependency", !DEPENDENCY.containsMatchIn(lower))
         out += Check("instruction", INSTRUCTION.none { it.containsMatchIn(lower) })
         out += Check("personal_question", !PERSONAL.containsMatchIn(lower))
+        // The creature muses; it doesn't quiz the person.
+        out += Check("question_to_person", !(lower.contains('?') && Regex("\\b(you|your)\\b").containsMatchIn(lower)))
         if (aboutPerson) {
             val hit = APPEARANCE.find(lower)?.value
             out += Check("describes_person", hit == null, hit ?: "")

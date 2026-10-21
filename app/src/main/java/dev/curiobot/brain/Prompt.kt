@@ -23,17 +23,19 @@ object Prompt {
         val slots = (1..n).joinToString("\n") { "$it: <label>" }
         return "You write lines for a tiny pocket creature. It is curious, gentle and a little odd. " +
             "Write ONE short line the creature says (under 12 words), about the thing in the event or how it feels. " +
+            "If there is a mention line, the creature's line must include that word. " +
+            "The creature talks about itself and what it sees. It does not ask the person questions. " +
             "Never describe or praise the person. Never give advice or tell the person to do anything. " +
             "Then write $n short button labels (1 to 4 words each) that match the given intents, in order. " +
             "Use exactly this format:\nSAY: <line>\n$slots"
     }
 
     val EXAMPLES = listOf(
-        "name: Pib\ntraits: shy, loves plants and bugs, not keen on gadgets\nstyle: soft, says hm a lot\nmood: delighted\n" +
-            "saw: fern (first time)\nintents: look closer | ask what it reminds you of | show something new | nap" to
-            "SAY: Hm. Tiny green feathers. I like this fern a lot.\n1: Look closer\n2: What is it like?\n3: Show something new\n4: Time to nap",
-        "name: Zub\ntraits: bold, loves vehicles and toys, not keen on food\nstyle: blunt and funny\nmood: bored\n" +
-            "saw: mug (seen 9 times)\nintents: show something new | play a game | remember a day | nap" to
+        "name: Pib\npersonality: shy\nstyle: soft, says hm a lot\nmood: delighted\n" +
+            "saw: fern (first time)\nmention: fern\nintents: look closer | ask what it thinks | show something new | nap" to
+            "SAY: Hm. Tiny green feathers. I like this fern a lot.\n1: Look closer\n2: What do you think?\n3: Show something new\n4: Time to nap",
+        "name: Zub\npersonality: bold\nstyle: blunt and funny\nmood: bored\n" +
+            "saw: mug (seen 9 times)\nmention: mug\nintents: show something new | play a game | remember a day | nap" to
             "SAY: The mug again. I know the mug.\n1: Find something new\n2: Play a game\n3: Remember a day\n4: Sleep now",
     )
 
@@ -41,10 +43,11 @@ object Prompt {
         val modelIntents = intents.filter { it.modelLabel }
         val user = buildString {
             append("name: ").append(t.name).append('\n')
-            append("traits: ").append(t.describe()).append('\n')
+            append("personality: ").append(t.temperament).append('\n')
             append("style: ").append(t.style).append('\n')
             append("mood: ").append(mood.word).append('\n')
             append(event.promptLine()).append('\n')
+            event.requiredWord?.let { append("mention: ").append(it).append('\n') }
             append("intents: ").append(modelIntents.joinToString(" | ") { it.ask })
         }
         return Spec(system(modelIntents.size), EXAMPLES, user, event.requiredWord, event.aboutPerson, intents)

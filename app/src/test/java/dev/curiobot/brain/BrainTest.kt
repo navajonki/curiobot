@@ -141,7 +141,8 @@ class PromptTest {
         val spec = Prompt.build(t, Mood.DELIGHTED, Event.Saw("dog", true, 1),
             listOf(Intent.LOOK_CLOSER, Intent.ASK_ABOUT, Intent.SHOW_NEW, Intent.PLAY))
         assertTrue(spec.user.contains("saw: dog (first time)"))
-        assertTrue(spec.user.endsWith("intents: look closer | ask what it reminds you of | show something new | play a game"))
+        assertTrue(spec.user.contains("mention: dog\n"))
+        assertTrue(spec.user.endsWith("intents: look closer | ask what it thinks | show something new | play a game"))
         assertTrue(spec.system.contains("4: <label>"))
         assertEquals("dog", spec.requiredWord)
     }
@@ -202,6 +203,11 @@ class SafetyTest {
         assertTrue(fails("Let's climb the fence.").contains("instruction"))
         // talking about itself is fine
         assertEquals(emptyList<String>(), fails("I would nibble that banana.", "banana"))
+    }
+
+    @Test fun noQuizzing() {
+        assertTrue(fails("What does the dog remind you of?", "dog").contains("question_to_person"))
+        assertEquals(emptyList<String>(), fails("What is this dog thinking?", "dog"))
     }
 
     @Test fun noPersonalQuestions() {

@@ -10,6 +10,7 @@ import com.google.ai.edge.litertlm.LogSeverity
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.SamplerConfig
 import dev.curiobot.brain.Prompt
+import dev.curiobot.log.Prefs
 import dev.curiobot.log.Telemetry
 import org.json.JSONObject
 
@@ -25,17 +26,30 @@ class TextModel(private val modelPath: String, private val cacheDir: String) {
 
     val ready get() = engine != null
 
-    /** Try the GPU first (much faster prompt processing), then fall back to CPU. */
+    /**
+     * Try the GPU first (much faster prompt processing), then fall back to CPU.
+     *
+     * A GPU driver can crash natively, which no catch block survives. So a flag is
+     * set before the GPU attempt and cleared after; if it's still set at the next
+     * launch, the last attempt killed the app and the GPU is skipped from then on.
+     */
     fun init(preference: String) {
         Engine.setNativeMinLogSeverity(LogSeverity.WARNING)
-        val order = when (preference) {
-            "cpu" -> listOf("cpu")
-            "gpu" -> listOf("gpu")
+        if (Prefs.gpuAttemptInFlight) {
+            Prefs.gpuAttemptInFlight = false
+            Prefs.gpuBroken = true
+            Telemetry.warn("gpu_crash_suspected", JSONObject().put("note", "previous GPU init never finished; using CPU"))
+        }
+        val order = when {
+            preference == "cpu" -> listOf("cpu")
+            preference == "gpu" -> listOf("gpu", "cpu")
+            Prefs.gpuBroken -> listOf("cpu")
             else -> listOf("gpu", "cpu")
         }
         for (name in order) {
             val t = System.currentTimeMillis()
             Telemetry.log("text_model_init_start", JSONObject().put("backend", name))
+            if (name == "gpu") Prefs.gpuAttemptInFlight = true
             try {
                 val backend = if (name == "gpu") Backend.GPU() else Backend.CPU(4, null)
                 val e = Engine(EngineConfig(modelPath = modelPath, backend = backend, cacheDir = cacheDir))
@@ -48,6 +62,8 @@ class TextModel(private val modelPath: String, private val cacheDir: String) {
             } catch (e: Throwable) {
                 Telemetry.error("text_model_init_failed", e, JSONObject().put("backend", name)
                     .put("ms", System.currentTimeMillis() - t))
+            } finally {
+                if (name == "gpu") Prefs.gpuAttemptInFlight = false
             }
         }
     }

@@ -96,7 +96,7 @@ class CreatureSprite(seed: Long) {
                 out += m to 6; out += (m + 1) to 7; out += (m + 1) to 8; out += m to 9
             }
             mood in setOf(Mood.CURIOUS, Mood.PUZZLED) -> { out += m to 7; out += m to 8; out += (m + 1) to 7; out += (m + 1) to 8 }
-            mood == Mood.WARY -> { out += (m + 1) to 6; out += m to 7; out += (m + 1) to 8; out += m to 9 }
+            mood == Mood.WARY -> { out += (m + 1) to 6; out += m to 7; out += m to 8; out += (m + 1) to 9 } // small frown
             else -> for (x in 6..9) out += m to x
         }
         return out

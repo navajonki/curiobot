@@ -36,6 +36,7 @@ class DevActivity : ComponentActivity() {
         button("Test pace on/off (hours become minutes)") { Prefs.testPace = !Prefs.testPace; Telemetry.log("pref_test_pace", JSONObject().put("on", Prefs.testPace)) }
         button("Text model: auto / gpu / cpu (next launch)") {
             Prefs.backend = when (Prefs.backend) { "auto" -> "gpu"; "gpu" -> "cpu"; else -> "auto" }
+            if (Prefs.backend == "gpu") Prefs.gpuBroken = false
             Telemetry.log("pref_backend", JSONObject().put("backend", Prefs.backend))
         }
         button("Run self-test (bundled photos)") { selfTest() }
@@ -69,7 +70,7 @@ class DevActivity : ComponentActivity() {
     }
 
     private fun refresh() {
-        status.text = game.statusText() + "\nbackend pref ${Prefs.backend}"
+        status.text = game.statusText() + "\nbackend pref ${Prefs.backend}" + if (Prefs.gpuBroken) " (gpu skipped after a crash)" else ""
     }
 
     private fun mono(size: Float) = TextView(this).apply {

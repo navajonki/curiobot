@@ -36,7 +36,7 @@ data class Seeing(
  */
 enum class Intent(val id: String, val ask: String, val labels: List<String>, val modelLabel: Boolean = true) {
     LOOK_CLOSER("look_closer", "look closer", listOf("Look closer", "Look closer at {word}")),
-    ASK_ABOUT("ask_about", "ask what it reminds you of", listOf("What's it like?", "Tell me about {word}")),
+    ASK_ABOUT("ask_about", "ask what it thinks", listOf("What do you think?", "Tell me about {word}")),
     SHOW_NEW("show_new", "show something new", listOf("Show something new", "Find something new")),
     PLAY("play", "play a game", listOf("Play a game", "Let's play")),
     REMEMBER("remember", "remember a day", listOf("Remember a day", "Remember something")),
@@ -84,7 +84,7 @@ sealed class Event {
     }
     data class Recall(val entry: JournalEntry) : Event() {
         override val requiredWord get() = entry.word?.takeIf { it != "person" }
-        override fun promptLine() = "event: remembering this: ${entry.text}"
+        override fun promptLine() = "event: remembering this: " + entry.text.replace(Regex("^Day \\d+: "), "")
     }
     object Woke : Event() {
         override val requiredWord: String? get() = null

@@ -52,10 +52,36 @@ class MainActivity : ComponentActivity(), Game.Host {
         setContentView(buildLayout())
         game.host = this
         game.start()
-        if (intent?.getBooleanExtra("selftest", false) == true) {
-            // Used by automated device tests: run the photo pipeline once the models are up.
-            lcdView.postDelayed({ startActivity(Intent(this, DevActivity::class.java).putExtra("selftest", true)) }, 1500)
+        if (intent?.action == TEST_LOOP) runTestLoop()
+    }
+
+    /**
+     * Automated device run (Firebase Test Lab game loop): wait for the models,
+     * run every bundled photo through the full pipeline, upload logs, then exit.
+     */
+    private fun runTestLoop() {
+        val started = System.currentTimeMillis()
+        Telemetry.log("test_loop_start", JSONObject().put("scenario", intent?.getIntExtra("scenario", 0) ?: 0))
+        val waiter = object : Runnable {
+            override fun run() {
+                val phase = game.ui.phase
+                val waited = System.currentTimeMillis() - started
+                if (phase == dev.curiobot.ui.Phase.IDLE && game.eyeReady) {
+                    game.runSelfTest { summary ->
+                        Telemetry.log("test_loop_done", JSONObject().put("summary", summary).put("ms", System.currentTimeMillis() - started))
+                        Telemetry.flushSoon()
+                        lcdView.postDelayed({ finish() }, 8_000)
+                    }
+                } else if (waited > 20 * 60_000) {
+                    Telemetry.warn("test_loop_timeout", JSONObject().put("phase", phase.name))
+                    Telemetry.flushSoon()
+                    lcdView.postDelayed({ finish() }, 8_000)
+                } else {
+                    lcdView.postDelayed(this, 2_000)
+                }
+            }
         }
+        lcdView.postDelayed(waiter, 2_000)
     }
 
     override fun onResume() {
@@ -197,4 +223,8 @@ class MainActivity : ComponentActivity(), Game.Host {
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    companion object {
+        const val TEST_LOOP = "com.google.intent.action.TEST_LOOP"
+    }
 }
