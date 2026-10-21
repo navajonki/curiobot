@@ -97,7 +97,7 @@ object Prompt {
      * question when there's a statement before it. Returns null if nothing is left.
      */
     fun tidy(line: String): String? {
-        var parts = line.replace(Regex("\\s*:\\s*"), ", ").split(SENTENCE_END).map { it.trim() }.filter { it.isNotEmpty() }
+        var parts = line.replace(Regex("\\s*[:\u2014\u2013]\\s*"), ", ").split(SENTENCE_END).map { it.trim() }.filter { it.isNotEmpty() }
         parts = parts.filterNot { MENU_ECHO.containsMatchIn(it.lowercase()) }
         while (parts.size > 1 && parts.last().endsWith("?")) parts = parts.dropLast(1)
         return parts.joinToString(" ").ifEmpty { null }
