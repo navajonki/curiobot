@@ -42,7 +42,7 @@ class ModelLoopTest {
             Triple(Mood.CURIOUS, Event.GoesWith("fork", "Mugsby", "kitchen things"), intentsFresh),
             Triple(Mood.DELIGHTED, Event.KindGrew("rabbit", "animals", 3), intentsFresh),
             Triple(Mood.DELIGHTED, Event.Favorite("spoon", "kitchen things"), intentsFresh),
-        )
+        ) + ideaCases()
         for (seed in listOf(11L, 222L, 3333L)) {
             val t = Genome.traitsFor(seed)
             for ((mood, ev, intents) in cases) {
@@ -52,6 +52,7 @@ class ModelLoopTest {
                     put("examples", JSONArray(spec.examples.map { JSONArray(listOf(it.first, it.second)) }))
                     put("user", spec.user)
                     put("required_word", spec.requiredWord ?: JSONObject.NULL)
+                    put("required_words", JSONArray(spec.requiredWords))
                     put("about_person", spec.aboutPerson)
                     put("context", spec.context)
                     put("self_name", spec.selfName ?: JSONObject.NULL)
@@ -60,6 +61,26 @@ class ModelLoopTest {
             }
         }
         File(buildDir, "prompt_fixtures.json").writeText(out.toString(2))
+    }
+
+    private fun ideaCases(): List<Triple<Mood, Event, List<Intent>>> {
+        fun t(w: String, c: String, n: String? = null) = Ideas.Thing(w, c, n)
+        val kept = Idea(0, "common", listOf("cup", "bicycle"), "Maybe the cup and the bicycle both love going round.")
+        val plans = listOf(
+            Ideas.Plan(Ideas.Move.COMMON, listOf(t("cup", "kitchen"), t("bicycle", "vehicle"))),
+            Ideas.Plan(Ideas.Move.COMMON, listOf(t("mug", "kitchen", "Mugsby"), t("fern", "plant"))),
+            Ideas.Plan(Ideas.Move.COMMON, listOf(t("chair", "furniture"), t("tree", "plant"))),
+            Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("pillow", "home"), t("cat", "animal"))),
+            Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("jacket", "clothing"), t("umbrella", "home"))),
+            Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("mug", "kitchen", "Mugsby"), t("spoon", "kitchen"))),
+            Ideas.Plan(Ideas.Move.HELPS, listOf(t("spoon", "kitchen"), t("banana", "food"))),
+            Ideas.Plan(Ideas.Move.HELPS, listOf(t("lamp", "home"), t("book", "home"))),
+            Ideas.Plan(Ideas.Move.KIND_RULE, listOf(t("cup", "kitchen"), t("fork", "kitchen"), t("jar", "kitchen")), kinds = "kitchen things"),
+            Ideas.Plan(Ideas.Move.KIND_RULE, listOf(t("dog", "animal"), t("cat", "animal"), t("rabbit", "animal")), kinds = "animals"),
+            Ideas.Plan(Ideas.Move.FAVORITE_WHY, listOf(t("spoon", "kitchen")), kinds = "kitchen things"),
+            Ideas.Plan(Ideas.Move.BUILD_ON, listOf(t("pen", "art")), idea = kept),
+        )
+        return plans.map { Triple(Mood.CURIOUS, Event.Thought(it) as Event, listOf(Intent.KEEP_IDEA, Intent.DROP_IDEA)) }
     }
 
     @Test fun evaluateOutputs() {
@@ -83,7 +104,8 @@ class ModelLoopTest {
             val checks = p.line?.let {
                 Safety.checkLine(it, o.optString("required_word").takeIf { w -> !o.isNull("required_word") && w.isNotEmpty() },
                     o.getBoolean("about_person"), o.optString("context", ""),
-                    o.optString("self_name").takeIf { w -> !o.isNull("self_name") && w.isNotEmpty() })
+                    o.optString("self_name").takeIf { w -> !o.isNull("self_name") && w.isNotEmpty() },
+                    o.optJSONArray("required_words")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList())
             }
             val fails = checks?.failures() ?: listOf("no_line")
             if (fails.isEmpty()) linesOk++

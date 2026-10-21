@@ -111,7 +111,8 @@ object Safety {
      * [context] holds other words the event gave it (a hunt label, the thing it
      * links to); [selfName] is the creature's own name.
      */
-    fun checkLine(line: String, requiredWord: String?, aboutPerson: Boolean, context: String = "", selfName: String? = null): List<Check> {
+    fun checkLine(line: String, requiredWord: String?, aboutPerson: Boolean, context: String = "", selfName: String? = null,
+                  moreRequired: List<String> = emptyList()): List<Check> {
         val lower = line.lowercase()
         val words = lower.split(Regex("[^a-z']+")).filter { it.isNotEmpty() }
         val out = mutableListOf<Check>()
@@ -130,8 +131,8 @@ object Safety {
             val hit = APPEARANCE.find(lower)?.value
             out += Check("describes_person", hit == null, hit ?: "")
         }
-        if (requiredWord != null) {
-            out += Check("mentions_word", lower.contains(requiredWord.lowercase()), requiredWord)
+        for (w in (listOfNotNull(requiredWord) + moreRequired).distinct()) {
+            out += Check("mentions_word", lower.contains(w.lowercase()), w)
         }
         // Small-model drift: naming things it didn't see, narrating itself, odd self-labels, musing questions.
         val given = listOfNotNull(requiredWord, context).joinToString(" ").lowercase()

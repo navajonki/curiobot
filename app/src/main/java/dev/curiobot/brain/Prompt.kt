@@ -18,6 +18,8 @@ object Prompt {
         /** Other words the line may use (see [Event.context]). */
         val context: String = "",
         val selfName: String? = null,
+        /** All words the line must include (more than one for ideas). */
+        val requiredWords: List<String> = listOfNotNull(requiredWord),
     )
 
     data class Parsed(val line: String?, val labels: List<String?>, val wellFormed: Boolean)
@@ -26,11 +28,12 @@ object Prompt {
         val slots = (1..n).joinToString("\n") { "$it: <label>" }
         return "You write lines for a tiny pocket creature. It is curious, gentle and a little odd. " +
             "Write ONE short line the creature says (under 12 words), about the thing in the event or how it feels. " +
-            "If there is a mention line, the creature's line must include that word. " +
+            "If there is a mention line, the creature's line must include those words. " +
             "The creature speaks as I and only talks about what is in the event. It does not ask questions. " +
+            "For a new idea, say it as a playful guess that starts with Maybe or I think. " +
             "Never describe or praise the person. Never give advice or tell the person to do anything. " +
-            "Then write $n short button labels (1 to 4 words each) that match the given intents, in order. " +
-            "Use exactly this format:\nSAY: <line>\n$slots"
+            (if (n > 0) "Then write $n short button labels (1 to 4 words each) that match the given intents, in order. " else "") +
+            "Use exactly this format:\nSAY: <line>" + (if (n > 0) "\n$slots" else "")
     }
 
     val EXAMPLES = listOf(
@@ -45,6 +48,12 @@ object Prompt {
             "SAY: The chair again. I know this chair.\n1: Find something new\n2: Remember a day",
     )
 
+    /** Ideas get their own second example, since a 0.6B model copies the shape it's shown. */
+    val IDEA_EXAMPLE =
+        "name: Zub\npersonality: bold\nstyle: blunt and funny\nmood: curious\n" +
+            "event: a new idea about what the spoon and the moon have in common\nmention: spoon, moon" to
+            "SAY: Maybe the spoon is a tiny moon for soup. Both are round and shiny."
+
     fun build(t: Traits, mood: Mood, event: Event, intents: List<Intent>): Spec {
         val modelIntents = intents.filter { it.modelLabel }
         val user = buildString {
@@ -53,11 +62,12 @@ object Prompt {
             append("style: ").append(t.style).append('\n')
             append("mood: ").append(mood.word).append('\n')
             append(event.promptLine()).append('\n')
-            event.requiredWord?.let { append("mention: ").append(it).append('\n') }
-            append("intents: ").append(modelIntents.joinToString(" | ") { it.ask })
-        }
-        return Spec(system(modelIntents.size), EXAMPLES, user, event.requiredWord, event.aboutPerson, intents,
-            event.context, t.name)
+            if (event.requiredWords.isNotEmpty()) append("mention: ").append(event.requiredWords.joinToString(", ")).append('\n')
+            if (modelIntents.isNotEmpty()) append("intents: ").append(modelIntents.joinToString(" | ") { it.ask })
+        }.trimEnd()
+        val examples = if (event is Event.Thought) listOf(EXAMPLES[0], IDEA_EXAMPLE) else EXAMPLES
+        return Spec(system(modelIntents.size), examples, user, event.requiredWord, event.aboutPerson, intents,
+            event.context, t.name, event.requiredWords)
     }
 
     private val SAY = Regex("^\\s*SAY\\s*:\\s*(.+?)\\s*$", RegexOption.IGNORE_CASE)

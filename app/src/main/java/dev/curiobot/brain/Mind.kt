@@ -41,6 +41,10 @@ enum class Intent(val id: String, val ask: String, val labels: List<String>, val
     ASK_ABOUT("ask_about", "ask what it thinks", listOf("What do you think?", "Tell me about {word}")),
     SHOW_NEW("show_new", "show something new", listOf("Show something new", "Find something new")),
     REMEMBER("remember", "remember a day", listOf("Remember a day", "Remember something")),
+    /** Combine things from its past into a new idea (see [Ideas]). */
+    REFLECT("reflect", "", listOf("Reflect"), modelLabel = false),
+    KEEP_IDEA("keep_idea", "", listOf("That's cool!"), modelLabel = false),
+    DROP_IDEA("drop_idea", "", listOf("Not too sure about that one"), modelLabel = false),
     NAP("nap", "nap", listOf("Nap time", "Time to rest")),
     SAY_HI("say_hi", "say hello back", listOf("Say hello", "Wave hello")),
     CORRECT("correct", "", listOf("Not quite"), modelLabel = false),
@@ -76,6 +80,8 @@ fun withArticle(w: String) = (if (w.isNotEmpty() && w[0].lowercaseChar() in "aei
  */
 sealed class Event {
     abstract val requiredWord: String?
+    /** Every word the line must include; usually just [requiredWord]. */
+    open val requiredWords: List<String> get() = listOfNotNull(requiredWord)
     open val aboutPerson: Boolean = false
     /**
      * Written lines only, never the model. Anything about a person (no risk of
@@ -149,6 +155,14 @@ sealed class Event {
         override val requiredWord get() = word
         override val context get() = "$other $kinds"
         override fun promptLine() = "event: the $word goes with the $other I saw before"
+    }
+    /** Reflect: a new idea combining things from its past. Code picked the things and the move. */
+    data class Thought(val plan: Ideas.Plan) : Event() {
+        override val requiredWord get() = plan.required.firstOrNull()
+        override val requiredWords get() = plan.required
+        override val context get() = (plan.things.flatMap { listOfNotNull(it.word, it.nickname) } +
+            listOfNotNull(plan.kinds, plan.idea?.text)).joinToString(" ")
+        override fun promptLine() = Ideas.promptLine(plan)
     }
     object Hello : Event() {
         override val requiredWord: String? get() = null
@@ -298,7 +312,7 @@ object Mind {
         out += if (s.huntId != null) Intent.HUNT_SKIP else Intent.HUNT
         if (s.wishId != null && !s.wishGranted) out += Intent.WISH
         if (Nest.kindsFound(s) > 0) out += Intent.NEST
-        if (s.journal.isNotEmpty()) out += Intent.REMEMBER
+        if (Ideas.canReflect(s)) out += Intent.REFLECT
         return out
     }
 
@@ -309,6 +323,7 @@ object Mind {
                 s.energy = clamp(s.energy - ACTION_ENERGY / 2); s.satisfaction = clamp(s.satisfaction + 0.03)
             }
             Intent.REMEMBER -> s.energy = clamp(s.energy - ACTION_ENERGY / 3)
+            Intent.REFLECT -> s.energy = clamp(s.energy - ACTION_ENERGY / 2)
             else -> {}
         }
         s.interactions++

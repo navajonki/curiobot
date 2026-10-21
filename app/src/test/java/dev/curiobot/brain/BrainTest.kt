@@ -164,8 +164,9 @@ class PromptTest {
 
     @Test fun fixedLabelIntentsAreNotSentToTheModel() {
         val spec = Prompt.build(t, Mood.SLEEPY, Event.Woke, listOf(Intent.LET_SLEEP, Intent.PEEK))
-        assertTrue(spec.user.endsWith("intents: "))
-        assertTrue(spec.system.contains("write 0 short"))
+        assertFalse(spec.user.contains("intents:"))
+        assertFalse(spec.system.contains("button labels"))
+        assertTrue(spec.system.endsWith("SAY: <line>"))
     }
 
     // Real outputs captured from the shipped model file.

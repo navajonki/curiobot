@@ -45,6 +45,12 @@ class CreatureState(
     var wishDay = -1
     var wishGranted = false
     var taughtCount = 0
+    /** Reflection: ideas the person kept, how much they like each kind of idea, recent combinations. */
+    val ideas = mutableListOf<Idea>()
+    val moveScores = linkedMapOf<String, Double>()
+    val recentIdeaKeys = mutableListOf<String>()
+    var ideasHad = 0
+    var ideasKept = 0
 
     val traits: Traits by lazy { Genome.traitsFor(seed) }
 
@@ -82,6 +88,15 @@ class CreatureState(
         put("wishDay", wishDay)
         put("wishGranted", wishGranted)
         put("taughtCount", taughtCount)
+        put("ideas", JSONArray().also { a ->
+            for (i in ideas) a.put(JSONObject().apply {
+                put("ts", i.ts); put("move", i.move); put("words", JSONArray(i.words)); put("text", i.text)
+            })
+        })
+        put("moveScores", JSONObject().also { o -> moveScores.forEach { (k, v) -> o.put(k, v) } })
+        put("recentIdeaKeys", JSONArray(recentIdeaKeys))
+        put("ideasHad", ideasHad)
+        put("ideasKept", ideasKept)
         put("journal", JSONArray().also { a ->
             for (e in journal) a.put(JSONObject().apply {
                 put("ts", e.ts); put("word", e.word ?: JSONObject.NULL); put("mood", e.mood); put("text", e.text)
@@ -103,6 +118,7 @@ class CreatureState(
         put("wish_granted", wishGranted)
         put("hunts_done", huntsDone)
         put("taught", taughtCount)
+        put("ideas_kept", ideas.size)
     }
 
     companion object {
@@ -136,6 +152,18 @@ class CreatureState(
             s.wishDay = o.optInt("wishDay", -1)
             s.wishGranted = o.optBoolean("wishGranted", false)
             s.taughtCount = o.optInt("taughtCount", 0)
+            o.optJSONArray("ideas")?.let { a ->
+                for (i in 0 until a.length()) {
+                    val x = a.getJSONObject(i)
+                    val w = x.optJSONArray("words")
+                    s.ideas += Idea(x.getLong("ts"), x.optString("move"),
+                        if (w == null) emptyList() else List(w.length()) { k -> w.getString(k) }, x.getString("text"))
+                }
+            }
+            o.optJSONObject("moveScores")?.let { m -> for (k in m.keys()) s.moveScores[k] = m.getDouble(k) }
+            o.optJSONArray("recentIdeaKeys")?.let { a -> for (i in 0 until a.length()) s.recentIdeaKeys += a.getString(i) }
+            s.ideasHad = o.optInt("ideasHad", 0)
+            s.ideasKept = o.optInt("ideasKept", 0)
             o.optJSONArray("journal")?.let { a ->
                 for (i in 0 until a.length()) {
                     val x = a.getJSONObject(i)

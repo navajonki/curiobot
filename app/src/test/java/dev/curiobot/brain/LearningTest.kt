@@ -220,3 +220,85 @@ class NestTest {
         assertEquals(cats, Nest.KINDS.toSet())
     }
 }
+
+class IdeasTest {
+    private fun creature(vararg seen: Pair<String, String>): CreatureState {
+        val s = CreatureState(42, 0)
+        seen.forEachIndexed { i, (w, c) -> Mind.react(s, Seeing(Verdict.NORMAL, w, c, 0.9, 1.0), 1_000L + i) }
+        return s
+    }
+
+    @Test fun needsTwoThingsToReflect() {
+        val s = creature("cup" to "kitchen")
+        assertFalse(Ideas.canReflect(s))
+        assertFalse(Intent.REFLECT in Mind.intentsFor(s, fresh = false))
+        assertNull(Ideas.plan(s, emptyMap(), kotlin.random.Random(1)))
+        Mind.react(s, Seeing(Verdict.PERSON, "person", "person", 0.9, 0.5), 2_000)
+        assertFalse("people never become idea material", Ideas.canReflect(s))
+        Mind.react(s, Seeing(Verdict.NORMAL, "fern", "plant", 0.9, 1.0), 3_000)
+        assertTrue(Intent.REFLECT in Mind.intentsFor(s, fresh = false))
+        assertFalse(Intent.REMEMBER in Mind.intentsFor(s, fresh = false))
+    }
+
+    @Test fun plansUseRealMemoriesAndNicknames() {
+        val s = creature("cup" to "kitchen", "fern" to "plant", "dog" to "animal", "mug" to "kitchen")
+        val rng = kotlin.random.Random(7)
+        repeat(20) {
+            val p = Ideas.plan(s, mapOf("mug" to "Mugsby"), rng) ?: return@repeat
+            assertTrue(p.things.all { it.word in s.seen.keys })
+            assertTrue(p.required.isNotEmpty())
+            p.things.filter { it.word == "mug" }.forEach { assertEquals("Mugsby", it.name) }
+            val e = Event.Thought(p)
+            assertEquals(p.required, e.requiredWords)
+            assertTrue(e.promptLine().startsWith("event: a new idea"))
+        }
+        assertTrue(s.recentIdeaKeys.size <= 12)
+    }
+
+    @Test fun avoidsRepeatingTheSameCombination() {
+        val s = creature("cup" to "kitchen", "fern" to "plant", "dog" to "animal", "hat" to "clothing", "car" to "vehicle")
+        val rng = kotlin.random.Random(3)
+        val keys = (1..8).mapNotNull { Ideas.plan(s, emptyMap(), rng)?.key }
+        assertEquals(keys.size, keys.toSet().size)
+    }
+
+    @Test fun keepingAndDroppingShapeWhatItThinksAbout() {
+        val s = creature("cup" to "kitchen", "fern" to "plant")
+        val p = Ideas.Plan(Ideas.Move.FRIENDS, Ideas.material(s).take(2))
+        Ideas.keep(s, p, "I think the cup and the fern would be friends.", 5_000)
+        assertEquals(1, s.ideas.size)
+        assertEquals(1.5, s.moveScores["friends"]!!, 1e-9)
+        assertTrue(s.journal.last().text.contains("new idea"))
+        Ideas.drop(s, Ideas.Plan(Ideas.Move.HELPS, p.things))
+        assertEquals(0.7, s.moveScores["helps"]!!, 1e-9)
+        repeat(10) { Ideas.drop(s, Ideas.Plan(Ideas.Move.HELPS, p.things)) }
+        assertEquals("never drops to zero, so nothing is gone for good", 0.3, s.moveScores["helps"]!!, 1e-9)
+        // a kept idea can be built on
+        Mind.react(s, Seeing(Verdict.NORMAL, "pen", "art", 0.9, 1.0), 6_000)
+        val rng = kotlin.random.Random(11)
+        val built = (1..40).mapNotNull { Ideas.plan(s, emptyMap(), rng) }.firstOrNull { it.move == Ideas.Move.BUILD_ON }
+        assertNotNull(built)
+        assertEquals("pen", built!!.things.single().word)
+        // survives a save and load
+        val back = CreatureState.fromJson(s.toJson())
+        assertEquals(s.ideas, back.ideas)
+        assertEquals(s.moveScores, back.moveScores)
+    }
+
+    @Test fun ideaPromptsUseTheIdeaExampleAndNoLabels() {
+        val s = creature("cup" to "kitchen", "bicycle" to "vehicle")
+        val p = Ideas.Plan(Ideas.Move.COMMON, Ideas.material(s))
+        val spec = Prompt.build(s.traits, Mood.CURIOUS, Event.Thought(p), listOf(Intent.KEEP_IDEA, Intent.DROP_IDEA))
+        assertTrue(spec.user.contains("mention: bicycle, cup") || spec.user.contains("mention: cup, bicycle"))
+        assertFalse(spec.user.contains("intents:"))
+        assertEquals(Prompt.IDEA_EXAMPLE, spec.examples.last())
+        // both words are required
+        assertTrue(Safety.checkLine("Maybe the cup is round.", spec.requiredWord, false, spec.context, null, spec.requiredWords)
+            .failures().any { it.startsWith("mentions_word") })
+        assertEquals(emptyList<String>(), Safety.checkLine("Maybe the cup and the bicycle both like going round.",
+            spec.requiredWord, false, spec.context, null, spec.requiredWords).failures())
+        // the written fallback mentions what it combined
+        val f = Ideas.fallback(p, 0)
+        assertTrue(f.contains("cup") && f.contains("bicycle"))
+    }
+}
