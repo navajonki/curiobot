@@ -35,6 +35,16 @@ class CreatureState(
     var focusAt = 0L
     val seen = linkedMapOf<String, Sighting>()
     val journal = mutableListOf<JournalEntry>()
+    /** Current scavenger hunt, if any (see [Hunts]). */
+    var huntId: String? = null
+    var huntStartedAt = 0L
+    var huntsDone = 0
+    val recentHunts = mutableListOf<String>()
+    /** Today's wish; a new one each creature-day. */
+    var wishId: String? = null
+    var wishDay = -1
+    var wishGranted = false
+    var taughtCount = 0
 
     val traits: Traits by lazy { Genome.traitsFor(seed) }
 
@@ -64,6 +74,14 @@ class CreatureState(
                 put("lastMood", s.lastMood); put("cat", s.cat)
             })
         })
+        put("huntId", huntId ?: JSONObject.NULL)
+        put("huntStartedAt", huntStartedAt)
+        put("huntsDone", huntsDone)
+        put("recentHunts", JSONArray(recentHunts))
+        put("wishId", wishId ?: JSONObject.NULL)
+        put("wishDay", wishDay)
+        put("wishGranted", wishGranted)
+        put("taughtCount", taughtCount)
         put("journal", JSONArray().also { a ->
             for (e in journal) a.put(JSONObject().apply {
                 put("ts", e.ts); put("word", e.word ?: JSONObject.NULL); put("mood", e.mood); put("text", e.text)
@@ -80,6 +98,11 @@ class CreatureState(
         put("words_known", seen.size)
         put("interactions", interactions)
         put("focus", focusWord ?: JSONObject.NULL)
+        put("hunt", huntId ?: JSONObject.NULL)
+        put("wish", wishId ?: JSONObject.NULL)
+        put("wish_granted", wishGranted)
+        put("hunts_done", huntsDone)
+        put("taught", taughtCount)
     }
 
     companion object {
@@ -105,6 +128,14 @@ class CreatureState(
                         x.optString("lastMood", "content"), x.optString("cat", ""))
                 }
             }
+            s.huntId = o.optStringOrNull("huntId")
+            s.huntStartedAt = o.optLong("huntStartedAt", 0)
+            s.huntsDone = o.optInt("huntsDone", 0)
+            o.optJSONArray("recentHunts")?.let { a -> for (i in 0 until a.length()) s.recentHunts += a.getString(i) }
+            s.wishId = o.optStringOrNull("wishId")
+            s.wishDay = o.optInt("wishDay", -1)
+            s.wishGranted = o.optBoolean("wishGranted", false)
+            s.taughtCount = o.optInt("taughtCount", 0)
             o.optJSONArray("journal")?.let { a ->
                 for (i in 0 until a.length()) {
                     val x = a.getJSONObject(i)

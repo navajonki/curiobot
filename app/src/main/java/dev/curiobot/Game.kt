@@ -4,16 +4,21 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import dev.curiobot.brain.CreatureState
-import dev.curiobot.brain.EmbeddingMemory
 import dev.curiobot.brain.Event
+import dev.curiobot.brain.MYSTERY
+import dev.curiobot.brain.Hunts
 import dev.curiobot.brain.Intent
 import dev.curiobot.brain.Lines
 import dev.curiobot.brain.Mind
 import dev.curiobot.brain.Mood
+import dev.curiobot.brain.Nicknames
 import dev.curiobot.brain.Pace
 import dev.curiobot.brain.Prompt
+import dev.curiobot.brain.Reaction
 import dev.curiobot.brain.Safety
 import dev.curiobot.brain.Seeing
+import dev.curiobot.brain.Thing
+import dev.curiobot.brain.ThingMemory
 import dev.curiobot.brain.Verdict
 import dev.curiobot.brain.allOk
 import dev.curiobot.brain.failures
@@ -55,6 +60,18 @@ class Game(private val ctx: Context) {
 
     enum class Button { LEFT, SELECT, RIGHT }
 
+    /** What was just seen, kept so the person can correct it. */
+    private data class SeenContext(
+        val label: String?,
+        val cat: String?,
+        val thingId: Int?,
+        val at: Long,
+        val embedding: FloatArray,
+        val novelty: Double,
+        /** Other plausible words, best first: (word, category). */
+        val alternatives: List<Pair<String, String>>,
+    )
+
     var host: Host? = null
 
     @Volatile var ui = UiState(); private set
@@ -66,7 +83,7 @@ class Game(private val ctx: Context) {
     private val textThread = Executors.newSingleThreadExecutor { Thread(it, "text-model") }.asCoroutineDispatcher()
     private val dir = File(ctx.filesDir, "creature").apply { mkdirs() }
     private val stateFile = File(dir, "state.json")
-    private val memory = EmbeddingMemory(File(dir, "sightings.bin"))
+    private val things = ThingMemory(File(dir, "things.bin"))
     private val rng = Random(System.nanoTime())
 
     private lateinit var state: CreatureState
@@ -74,9 +91,11 @@ class Game(private val ctx: Context) {
     private var text: TextModel? = null
     private var pace = Pace(Prefs.testPace)
     private var intents: List<Intent> = emptyList()
+    /** Per-option payloads (the word on a teaching option). */
+    private var args: List<String?> = emptyList()
     private var mood = Mood.CONTENT
     private var newborn = false
-    private var gameAnswer = 0
+    private var lastSeen: SeenContext? = null
     private var ticker: Job? = null
     private val frameLock = Any()
     private var lastFrame: Bitmap? = null
@@ -91,14 +110,15 @@ class Game(private val ctx: Context) {
         if (started) return
         started = true
         loadState()
-        memory.load()
+        File(dir, "sightings.bin").delete() // 0.1.x memory format, replaced by things.bin
+        things.load()
         scope.launch {
             val t = System.currentTimeMillis()
             eye = withContext(Dispatchers.Default) {
                 runCatching { Eye(ctx) }.onFailure { Telemetry.error("eye_init_failed", it) }.getOrNull()
             }
             Telemetry.log("eye_init", JSONObject().put("ok", eye != null).put("ms", System.currentTimeMillis() - t)
-                .put("vocabulary", eye?.vocabularySize ?: 0))
+                .put("vocabulary", eye?.vocabularySize ?: 0).put("things", things.size))
         }
         scope.launch { prepareTextModel() }
     }
@@ -133,7 +153,7 @@ class Game(private val ctx: Context) {
                 }.onFailure { Telemetry.error("model_download_failed", it) }.isSuccess
             }
             if (!ok) {
-                intents = listOf(Intent.TRY_AGAIN)
+                choose(listOf(Intent.TRY_AGAIN))
                 show(UiState(Phase.ERROR, line = "I couldn't finish hatching. Is the internet on?",
                     options = listOf("Try again"), status = "Downloads resume where they stopped."))
                 return
@@ -150,23 +170,33 @@ class Game(private val ctx: Context) {
     private fun greet() {
         val now = System.currentTimeMillis()
         val woke = Mind.tick(state, now, pace)
-        if (newborn) {
-            newborn = false
-            mood = Mood.CURIOUS
-            intents = Mind.intentsFor(state, fresh = false)
-            Telemetry.log("hatched", traitsJson())
-            showIdle(Lines.pick(Lines.HATCH, rng.nextInt(), name = state.traits.name), labelsFor(intents))
-        } else if (woke) {
-            Telemetry.log("wake", state.summary())
-            mood = Mind.idleMood(state)
-            turn(Event.Woke, fresh = false)
-        } else {
-            mood = Mind.idleMood(state)
-            intents = Mind.intentsFor(state, fresh = false)
-            val line = if (state.asleep) Lines.pick(Lines.LET_SLEEP, rng.nextInt())
-            else Lines.pick(Lines.IDLE[mood] ?: Lines.IDLE.getValue(Mood.CURIOUS), rng.nextInt())
-            showIdle(line, labelsFor(intents))
+        val newWish = Mind.ensureWish(state, now, pace, rng.nextInt(1_000_000))
+        newWish?.let { Telemetry.log("wish_new", JSONObject().put("wish", it.id).put("label", it.label)) }
+        when {
+            newborn -> {
+                newborn = false
+                mood = Mood.CURIOUS
+                choose(Mind.intentsFor(state, fresh = false))
+                Telemetry.log("hatched", traitsJson())
+                showIdle(Lines.pick(Lines.HATCH, rng.nextInt(), name = state.traits.name), labelsFor(intents))
+            }
+            woke -> {
+                Telemetry.log("wake", state.summary())
+                mood = Mind.idleMood(state)
+                turn(Event.Woke, fresh = false)
+            }
+            else -> {
+                mood = Mind.idleMood(state)
+                choose(Mind.intentsFor(state, fresh = false))
+                val line = when {
+                    state.asleep -> Lines.pick(Lines.LET_SLEEP, rng.nextInt())
+                    newWish != null -> Lines.pick(Lines.WISH_NEW, rng.nextInt(), label = newWish.label)
+                    else -> idleLine()
+                }
+                showIdle(line, labelsFor(intents))
+            }
         }
+        saveState()
         resume()
     }
 
@@ -180,7 +210,7 @@ class Game(private val ctx: Context) {
             Phase.IDLE, Phase.ERROR -> when (b) {
                 Button.LEFT -> moveCursor(-1)
                 Button.RIGHT -> moveCursor(1)
-                Button.SELECT -> intents.getOrNull(ui.cursor)?.let { perform(it) }
+                Button.SELECT -> intents.getOrNull(ui.cursor)?.let { perform(it, args.getOrNull(ui.cursor)) }
             }
             Phase.CAMERA -> when (b) {
                 Button.LEFT -> closeCamera(log = "cancelled").also { backToIdle() }
@@ -196,38 +226,50 @@ class Game(private val ctx: Context) {
         show(ui.copy(cursor = Math.floorMod(ui.cursor + d, n)))
     }
 
-    private fun perform(intent: Intent) {
+    private fun perform(intent: Intent, arg: String?) {
         tickNeeds()
-        Telemetry.log("intent", JSONObject().put("intent", intent.id).put("creature", state.summary()))
+        Telemetry.log("intent", JSONObject().put("intent", intent.id).put("arg", arg ?: JSONObject.NULL)
+            .put("creature", state.summary()))
+        val now = System.currentTimeMillis()
         when (intent) {
             Intent.SHOW_NEW -> openCamera()
-            Intent.LOOK_CLOSER -> state.focusWord?.let { Mind.spend(state, intent); turn(Event.Closer(it), fresh = true) } ?: backToIdle()
             Intent.ASK_ABOUT -> state.focusWord?.let { Mind.spend(state, intent); turn(Event.About(it), fresh = true) } ?: backToIdle()
             Intent.SAY_HI -> { Mind.spend(state, intent); mood = Mood.FRIENDLY; turn(Event.Hello, fresh = false) }
             Intent.REMEMBER -> {
                 val e = Mind.pickMemory(state, rng.nextInt(1000))
                 if (e == null) backToIdle() else { Mind.spend(state, intent); mood = Mood.CONTENT; turn(Event.Recall(e), fresh = false) }
             }
-            Intent.PLAY -> {
-                gameAnswer = rng.nextInt(2)
-                intents = listOf(Intent.GUESS_LEFT, Intent.GUESS_RIGHT)
-                mood = Mood.CURIOUS
-                Telemetry.log("game_start", JSONObject())
-                showIdle(Lines.pick(Lines.GAME_START, rng.nextInt()), labelsFor(intents))
+            Intent.MENU -> backToIdle()
+            Intent.CORRECT -> if (lastSeen?.label == null) backToIdle()
+                else { mood = Mood.PUZZLED; showTeachPage(0, Lines.pick(Lines.TEACH_ASK, rng.nextInt())) }
+            Intent.TEACH_PICK -> {
+                val word = arg ?: return backToIdle()
+                val cat = lastSeen?.alternatives?.firstOrNull { it.first == word }?.second ?: ""
+                applyTeach(word, cat)
             }
-            Intent.GUESS_LEFT, Intent.GUESS_RIGHT -> {
-                val win = (if (intent == Intent.GUESS_LEFT) 0 else 1) == gameAnswer
-                Mind.spend(state, intent)
-                mood = if (win) Mood.DELIGHTED else Mood.CONTENT
-                Telemetry.log("game_round", JSONObject().put("win", win))
-                intents = afterTurnIntents(fresh = false)
-                showIdle(Lines.pick(if (win) Lines.GAME_WIN else Lines.GAME_LOSE, rng.nextInt()), labelsFor(intents))
+            Intent.TEACH_MORE -> showTeachPage(1, Lines.pick(Lines.TEACH_MORE, rng.nextInt()))
+            Intent.TEACH_NONE -> applyTeach(MYSTERY, "mystery")
+            Intent.HUNT, Intent.HUNT_SKIP -> {
+                val h = Hunts.pick(state, rng.nextInt(1_000_000))
+                Mind.startHunt(state, h, now)
+                mood = Mood.CURIOUS
+                choose(Mind.intentsFor(state, fresh = false))
+                Telemetry.log("hunt_start", JSONObject().put("hunt", h.id).put("label", h.label)
+                    .put("skipped_previous", intent == Intent.HUNT_SKIP))
+                showIdle(Lines.pick(if (intent == Intent.HUNT) Lines.HUNT_START else Lines.HUNT_SKIP, rng.nextInt(),
+                    label = h.label), labelsFor(intents))
                 saveState()
             }
+            Intent.WISH -> {
+                val w = Hunts.byId(state.wishId)
+                choose(Mind.intentsFor(state, fresh = false))
+                showIdle(if (w == null || state.wishGranted) Lines.pick(Lines.WISH_DONE, 0)
+                    else Lines.pick(Lines.WISH_SHOW, rng.nextInt(), label = w.label), labelsFor(intents))
+            }
             Intent.NAP -> {
-                Mind.startNap(state, System.currentTimeMillis(), pace)
+                Mind.startNap(state, now, pace)
                 mood = Mood.SLEEPY
-                intents = Mind.intentsFor(state, fresh = false)
+                choose(Mind.intentsFor(state, fresh = false))
                 Telemetry.log("nap_start", JSONObject().put("minutes", pace.napMs / 60_000))
                 showIdle(Lines.pick(Lines.NAP, rng.nextInt()), labelsFor(intents))
                 saveState()
@@ -235,15 +277,16 @@ class Game(private val ctx: Context) {
             Intent.LET_SLEEP -> showIdle(Lines.pick(Lines.LET_SLEEP, rng.nextInt()), labelsFor(intents))
             Intent.PEEK -> {
                 state.dreamShown = true
-                val word = state.seen.keys.lastOrNull { it != "person" }
-                intents = Mind.intentsFor(state, fresh = false)
+                val nick = things.things.filter { it.nickname != null }.maxByOrNull { it.lastSeen }?.nickname
+                val word = nick ?: state.seen.keys.lastOrNull { it != "person" }
+                choose(Mind.intentsFor(state, fresh = false))
                 showIdle(if (word == null) Lines.pick(Lines.DREAM_EMPTY, 0) else Lines.pick(Lines.DREAM, rng.nextInt(), word),
                     labelsFor(intents))
             }
             Intent.WAKE -> {
-                val progress = Mind.wakeEarly(state, System.currentTimeMillis(), pace)
+                val progress = Mind.wakeEarly(state, now, pace)
                 mood = Mood.SLEEPY
-                intents = Mind.intentsFor(state, fresh = false)
+                choose(Mind.intentsFor(state, fresh = false))
                 Telemetry.log("wake_early", JSONObject().put("nap_progress", Math.round(progress * 100) / 100.0)
                     .put("energy", Math.round(state.energy * 100) / 100.0))
                 showIdle(Lines.pick(Lines.WOKE_EARLY, rng.nextInt()), labelsFor(intents))
@@ -262,10 +305,10 @@ class Game(private val ctx: Context) {
                 cameraFrame = null
                 show(ui.copy(phase = Phase.CAMERA))
                 h.startCamera()
-                Telemetry.log("camera_open", JSONObject())
+                Telemetry.log("camera_open", JSONObject().put("hunt", state.huntId ?: JSONObject.NULL))
             } else {
                 Telemetry.warn("camera_denied", JSONObject())
-                intents = Mind.intentsFor(state, fresh = false)
+                choose(Mind.intentsFor(state, fresh = false))
                 showIdle(Lines.pick(Lines.NO_CAMERA, 0), labelsFor(intents))
             }
         }
@@ -309,44 +352,130 @@ class Game(private val ctx: Context) {
 
     private fun handlePerception(p: Eye.Perception) {
         Telemetry.log("perception", p.toLog())
+        val now = System.currentTimeMillis()
         when (p.verdict) {
             Verdict.TRIPWIRE -> {
-                // Look away; nothing is remembered, named, or described.
+                // Look away; nothing is remembered, named, or described. Teaching can't override this.
                 Telemetry.log("tripwire", JSONObject().put("group", p.tripGroup).put("score", p.tripScore))
                 mood = Mood.QUIET
-                intents = Mind.intentsFor(state, fresh = false)
+                lastSeen = null
+                choose(Mind.intentsFor(state, fresh = false))
                 showIdle(Lines.pick(Lines.LOOK_AWAY, rng.nextInt()), labelsFor(intents))
             }
             Verdict.LOWINFO -> {
                 mood = Mood.PUZZLED
-                intents = Mind.intentsFor(state, fresh = false)
+                lastSeen = null
+                choose(Mind.intentsFor(state, fresh = false))
                 showIdle(Lines.pick(Lines.LOWINFO[p.label] ?: Lines.LOWINFO.getValue("blank"), rng.nextInt()), labelsFor(intents))
             }
-            Verdict.UNSURE -> {
-                mood = Mood.PUZZLED
-                intents = Mind.intentsFor(state, fresh = false)
-                showIdle(Lines.pick(Lines.UNSURE, rng.nextInt(), word = p.label), labelsFor(intents))
-            }
-            Verdict.NORMAL, Verdict.PERSON -> {
-                val person = p.verdict == Verdict.PERSON
-                val novelty = memory.novelty(p.embedding)
-                // Photos of people are never kept, not even as embeddings.
-                if (!person) { memory.add(p.embedding); memory.save() }
-                val seeing = Seeing(p.verdict, p.label, p.cat, p.confidence, novelty)
-                val r = Mind.react(state, seeing, System.currentTimeMillis())
+            Verdict.PERSON -> {
+                // Photos of people are never kept, not even as embeddings, and never matched to things.
+                lastSeen = null
+                val r = Mind.react(state, Seeing(Verdict.PERSON, "person", "person", p.confidence, 0.5), now)
                 mood = r.mood
-                Telemetry.log("reaction", JSONObject().apply {
-                    put("word", if (person) "person" else p.label)
-                    put("mood", r.mood.word); put("first_time", r.firstTime); put("count", r.count)
-                    put("score", Math.round(r.score * 100) / 100.0); put("image_novelty", Math.round(novelty * 100) / 100.0)
-                    put("satisfaction_delta", Math.round(r.satisfactionDelta * 100) / 100.0)
-                    put("energy_delta", Math.round(r.energyDelta * 100) / 100.0)
-                    put("journal", r.journal?.text ?: JSONObject.NULL)
-                })
-                val ev = if (person) Event.SawPerson(r.firstTime) else Event.Saw(p.label, r.firstTime, r.count)
+                logReaction("person", r, 0.5)
+                turn(Event.SawPerson(r.firstTime), fresh = true)
+            }
+            Verdict.NORMAL, Verdict.UNSURE -> {
+                val rec = things.recognize(p.embedding)
+                val novelty = things.novelty(p.embedding)
+                rec?.let {
+                    Telemetry.log("recognized", JSONObject().put("thing", it.thing.id).put("word", it.thing.word)
+                        .put("nickname", it.thing.nickname ?: JSONObject.NULL).put("taught", it.thing.taught)
+                        .put("similarity", r3(it.similarity)).put("clip_label", p.label)
+                        .put("clip_verdict", p.verdict.name.lowercase()))
+                }
+                if (rec == null && p.verdict == Verdict.UNSURE) {
+                    // It doesn't know: ask the person, which is how it learns.
+                    lastSeen = SeenContext(null, null, null, now, p.embedding, novelty, p.alternatives)
+                    mood = Mood.PUZZLED
+                    showTeachPage(0, Lines.pick(Lines.UNSURE_ASK, rng.nextInt()))
+                    return
+                }
+                val word = rec?.thing?.word ?: p.label
+                val cat = rec?.thing?.cat ?: p.cat
+                val r = Mind.react(state, Seeing(Verdict.NORMAL, word, cat, p.confidence, novelty), now)
+                val thing = rec?.thing?.also { things.observe(it, p.embedding, now) } ?: things.add(word, cat, p.embedding, now)
+                lastSeen = SeenContext(word, cat, thing.id, now, p.embedding, novelty, p.alternatives.filter { it.first != word })
+                mood = r.mood
+                logReaction(word, r, novelty)
+                val ev = specialEvent(word, cat, thing, now) ?: Event.Saw(word, r.firstTime, r.count, thing.nickname)
+                things.save()
                 turn(ev, fresh = true)
             }
         }
+    }
+
+    /** A hunt found, a wish granted or a new nickname beats an ordinary sighting. */
+    private fun specialEvent(word: String, cat: String, thing: Thing, now: Long): Event? {
+        Hunts.byId(state.huntId)?.takeIf { it.matches(word, cat) }?.let { h ->
+            val e = Mind.completeHunt(state, h, word, now)
+            mood = Mood.DELIGHTED
+            Telemetry.log("hunt_found", JSONObject().put("hunt", h.id).put("word", word).put("journal", e.text)
+                .put("hunts_done", state.huntsDone))
+            return Event.Found(word, h.label)
+        }
+        if (!state.wishGranted) Hunts.byId(state.wishId)?.takeIf { it.matches(word, cat) }?.let { w ->
+            val e = Mind.grantWish(state, w, word, now)
+            mood = Mood.DELIGHTED
+            Telemetry.log("wish_granted", JSONObject().put("wish", w.id).put("word", word).put("journal", e.text))
+            return Event.WishGranted(word, w.label)
+        }
+        if (thing.nickname == null && thing.count >= ThingMemory.NAME_AFTER) {
+            val nick = Nicknames.make(word, state.seed, thing.id)
+            thing.nickname = nick
+            Mind.named(state, word, nick, now)
+            mood = Mood.DELIGHTED
+            Telemetry.log("named", JSONObject().put("thing", thing.id).put("word", word).put("nickname", nick)
+                .put("count", thing.count))
+            return Event.Named(word, nick)
+        }
+        state.huntId?.let { Telemetry.log("hunt_miss", JSONObject().put("hunt", it).put("word", word)) }
+        return null
+    }
+
+    private fun logReaction(word: String, r: Reaction, novelty: Double) {
+        Telemetry.log("reaction", JSONObject().apply {
+            put("word", word)
+            put("mood", r.mood.word); put("first_time", r.firstTime); put("count", r.count)
+            put("score", r2(r.score)); put("image_novelty", r2(novelty))
+            put("satisfaction_delta", r2(r.satisfactionDelta)); put("energy_delta", r2(r.energyDelta))
+            put("journal", r.journal?.text ?: JSONObject.NULL)
+        })
+    }
+
+    // ---------- teaching ----------
+
+    /** Offer its next guesses, three at a time, then "None of these". */
+    private fun showTeachPage(page: Int, line: String) {
+        val ls = lastSeen ?: return backToIdle()
+        val slice = ls.alternatives.drop(page * 3).take(3)
+        val more = page == 0 && ls.alternatives.size > 3
+        choose(List(slice.size) { Intent.TEACH_PICK } + (if (more) Intent.TEACH_MORE else Intent.TEACH_NONE),
+            slice.map { it.first } + null)
+        Telemetry.log("teach_offer", JSONObject().put("page", page).put("guesses", JSONArray(slice.map { it.first }))
+            .put("current", ls.label ?: JSONObject.NULL))
+        showIdle(line, labelsFor(intents))
+    }
+
+    /** The person said what it really is: fix the memory and remember the photo by that word. */
+    private fun applyTeach(word: String, cat: String) {
+        val ls = lastSeen ?: return backToIdle()
+        val now = System.currentTimeMillis()
+        val firstLook = ls.label == null
+        ls.label?.let { Mind.unrecord(state, it, ls.at) }
+        val thing = ls.thingId?.let { things.byId(it) }?.also { things.relabel(it, word, cat) }
+            ?: things.add(word, cat, ls.embedding, now, taught = true)
+        val r = Mind.react(state, Seeing(Verdict.NORMAL, word, cat, 1.0, ls.novelty), now, applyNeeds = firstLook)
+        state.taughtCount++
+        Telemetry.log("taught", JSONObject().put("from", ls.label ?: JSONObject.NULL).put("to", word)
+            .put("guess_rank", ls.alternatives.indexOfFirst { it.first == word }).put("thing", thing.id)
+            .put("path", if (firstLook) "unsure" else "correction").put("taught_total", state.taughtCount))
+        lastSeen = ls.copy(label = word, cat = cat, thingId = thing.id, at = now,
+            alternatives = ls.alternatives.filter { it.first != word })
+        mood = if (r.mood == Mood.WARY) Mood.WARY else Mood.CURIOUS
+        things.save()
+        turn(Event.Taught(word), fresh = true)
     }
 
     // ---------- turns ----------
@@ -354,7 +483,7 @@ class Game(private val ctx: Context) {
     /** Ask the text model for a line + labels, check them, fall back if needed. */
     private fun turn(event: Event, fresh: Boolean) {
         val next = afterTurnIntents(fresh)
-        intents = next
+        choose(next)
         show(ui.copy(phase = Phase.THINKING, frozen = null, line = ""))
         val traits = state.traits
         val m = mood
@@ -368,7 +497,7 @@ class Game(private val ctx: Context) {
     }
 
     private fun afterTurnIntents(fresh: Boolean): List<Intent> =
-        if (Mind.shouldDoze(state)) listOf(Intent.NAP).also { Telemetry.log("dozing_cue", state.summary()) }
+        if (Mind.shouldDoze(state)) listOf(Intent.NAP, Intent.MENU).also { Telemetry.log("dozing_cue", state.summary()) }
         else Mind.intentsFor(state, fresh)
 
     data class Composed(val line: String, val labels: List<String>, val log: JSONObject)
@@ -408,9 +537,12 @@ class Game(private val ctx: Context) {
         // Labels: the model's if they pass, else the written one for that intent.
         val labelLog = JSONArray()
         var mi = 0
-        val labels = next.mapIndexed { i, intent ->
+        val labels = next.map { intent ->
             val written = intent.fallbackLabel(state.focusWord, rng.nextInt(10))
-            if (!intent.modelLabel) { labelLog.put(JSONObject().put("intent", intent.id).put("label", written).put("source", "fixed")); return@mapIndexed written }
+            if (!intent.modelLabel) {
+                labelLog.put(JSONObject().put("intent", intent.id).put("label", written).put("source", "fixed"))
+                return@map written
+            }
             val cand = modelLabels.getOrNull(mi++)
             val fails = cand?.let { Safety.checkLabel(it).failures() } ?: listOf("missing")
             val use = if (cand != null && fails.isEmpty()) cand else written
@@ -440,38 +572,56 @@ class Game(private val ctx: Context) {
         return when {
             event.aboutPerson -> Lines.pick(Lines.FALLBACK.getValue(Mood.FRIENDLY), rng.nextInt())
             event is Event.Woke -> Lines.pick(Lines.WOKE, rng.nextInt())
+            event is Event.Taught && event.unnamed -> Lines.pick(Lines.UNNAMED, rng.nextInt())
             word != null -> Lines.pick(Lines.FALLBACK[m] ?: Lines.FALLBACK.getValue(Mood.CURIOUS), rng.nextInt(), word, name)
             else -> Lines.pick(Lines.IDLE[m] ?: Lines.IDLE.getValue(Mood.CURIOUS), rng.nextInt())
         }
     }
 
-    private fun labelsFor(list: List<Intent>) = list.map { it.fallbackLabel(state.focusWord, 0) }
+    private fun choose(list: List<Intent>, a: List<String?> = emptyList()) {
+        intents = list
+        args = a
+    }
+
+    private fun labelsFor(list: List<Intent>) = list.mapIndexed { i, it -> it.fallbackLabel(args.getOrNull(i) ?: state.focusWord, 0) }
 
     // ---------- needs & display ----------
 
     private fun tickNeeds() {
         if (!::state.isInitialized) return
-        val woke = Mind.tick(state, System.currentTimeMillis(), pace)
+        val now = System.currentTimeMillis()
+        val woke = Mind.tick(state, now, pace)
+        Mind.ensureWish(state, now, pace, rng.nextInt(1_000_000))?.let {
+            Telemetry.log("wish_new", JSONObject().put("wish", it.id).put("label", it.label))
+        }
         if (woke && ui.phase == Phase.IDLE) {
             Telemetry.log("wake", state.summary())
             mood = Mind.idleMood(state)
             turn(Event.Woke, fresh = false)
             return
         }
-        if (ui.phase == Phase.IDLE) show(ui.copy(satisfaction = state.satisfaction, energy = state.energy, asleep = state.asleep))
+        if (ui.phase == Phase.IDLE) show(ui.copy(satisfaction = state.satisfaction, energy = state.energy,
+            asleep = state.asleep, wish = wishActive()))
+    }
+
+    private fun idleLine(): String {
+        Hunts.byId(state.huntId)?.let { h -> if (rng.nextInt(2) == 0) return Lines.pick(Lines.HUNT_REMINDER, rng.nextInt(), label = h.label) }
+        return Lines.pick(Lines.IDLE[mood] ?: Lines.IDLE.getValue(Mood.CURIOUS), rng.nextInt())
     }
 
     private fun backToIdle() {
         mood = Mind.idleMood(state)
-        intents = Mind.intentsFor(state, fresh = false)
-        showIdle(Lines.pick(Lines.IDLE[mood] ?: Lines.IDLE.getValue(Mood.CURIOUS), rng.nextInt()), labelsFor(intents))
+        choose(Mind.intentsFor(state, fresh = false))
+        showIdle(idleLine(), labelsFor(intents))
     }
+
+    private fun wishActive() = state.wishId != null && !state.wishGranted
 
     private fun showIdle(line: String, labels: List<String>) {
         show(UiState(
             phase = Phase.IDLE, name = state.traits.name, satisfaction = state.satisfaction, energy = state.energy,
             mood = if (state.asleep) Mood.SLEEPY else mood, line = line, options = labels, cursor = 0,
-            spriteSeed = state.seed, asleep = state.asleep,
+            spriteSeed = state.seed, asleep = state.asleep, wish = wishActive(),
         ))
         Telemetry.log("screen", JSONObject().put("line", line).put("options", JSONArray(labels))
             .put("mood", mood.word).put("asleep", state.asleep))
@@ -479,7 +629,7 @@ class Game(private val ctx: Context) {
 
     private fun show(s: UiState) {
         ui = if (::state.isInitialized && s.name.isEmpty()) s.copy(name = state.traits.name, spriteSeed = state.seed,
-            satisfaction = state.satisfaction, energy = state.energy, asleep = state.asleep) else s
+            satisfaction = state.satisfaction, energy = state.energy, asleep = state.asleep, wish = wishActive()) else s
     }
 
     // ---------- persistence ----------
@@ -512,7 +662,7 @@ class Game(private val ctx: Context) {
         return JSONObject().apply {
             put("seed", t.seed); put("name", t.name); put("temperament", t.temperament); put("style", t.style)
             put("loves", JSONArray(t.loves)); put("dislikes", t.dislikes)
-            put("curiosity", Math.round(t.curiosity * 100) / 100.0); put("shyness", Math.round(t.shyness * 100) / 100.0)
+            put("curiosity", r2(t.curiosity)); put("shyness", r2(t.shyness))
         }
     }
 
@@ -522,22 +672,26 @@ class Game(private val ctx: Context) {
         appendLine("device   ${Telemetry.deviceId.take(8)}  session ${Telemetry.sessionId}")
         appendLine("build    ${Telemetry.build}")
         appendLine("text     ${textBackend}  model file ${if (ModelStore.isReady(ctx)) "ready" else "missing"}")
-        appendLine("eye      ${if (eyeReady) "ready" else "not ready"}  memories ${memory.size}")
+        appendLine("eye      ${if (eyeReady) "ready" else "not ready"}  things ${things.size}" +
+            " (named ${things.things.count { it.nickname != null }}, taught ${things.things.count { it.taught }})")
         appendLine("logs     upload ${if (Telemetry.uploadEnabled) "on" else "off"}, pending ${Telemetry.pendingCount()}, sent ${Telemetry.uploadedTotal}" +
             (Telemetry.lastUploadError?.let { "\n         last error: $it" } ?: ""))
-        appendLine("pace     ${if (pace.test) "test (hours are minutes)" else "real"}")
+        appendLine("pace     ${if (pace.test) "test (hours are minutes, a day is 24 min)" else "real"}")
         if (::state.isInitialized) {
             val t = state.traits
             appendLine("creature ${t.name} (${t.temperament}, ${t.style})")
             appendLine("         loves ${t.loves.joinToString()}, dislikes ${t.dislikes}")
             appendLine("         curiosity %.2f  energy %.2f  words %d  asleep %s".format(state.satisfaction, state.energy, state.seen.size, state.asleep))
+            appendLine("         hunt ${Hunts.byId(state.huntId)?.label ?: "none"} (done ${state.huntsDone})  " +
+                "wish ${Hunts.byId(state.wishId)?.label ?: "none"}${if (state.wishGranted) " (granted)" else ""}")
         }
     }
 
     fun resetCreature() {
         Telemetry.log("creature_reset", traitsJson())
         stateFile.delete()
-        memory.clear()
+        things.clear()
+        lastSeen = null
         loadState()
         greet()
     }
@@ -574,4 +728,7 @@ class Game(private val ctx: Context) {
             done(summary.toString())
         }
     }
+
+    private fun r2(d: Double) = Math.round(d * 100) / 100.0
+    private fun r3(d: Double) = Math.round(d * 1000) / 1000.0
 }

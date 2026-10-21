@@ -30,6 +30,8 @@ class Eye(ctx: Context) {
         val cat: String,
         val confidence: Double,
         val top: List<Pair<String, Double>>,
+        /** Ordinary vocabulary words, best first, with categories: the guesses offered when teaching. */
+        val alternatives: List<Pair<String, String>>,
         val tripGroup: String,
         val tripScore: Double,
         val embedding: FloatArray,
@@ -85,6 +87,7 @@ class Eye(ctx: Context) {
     }
 
     val vocabularySize get() = rows.count { it.kind == "normal" }
+    private val catByLabel: Map<String, String> by lazy { rows.filter { it.kind == "normal" }.associate { it.label to it.cat } }
 
     fun see(photo: Bitmap): Perception {
         val t0 = System.nanoTime()
@@ -163,6 +166,8 @@ class Eye(ctx: Context) {
             cat = catOf,
             confidence = conf,
             top = ranked.take(10).map { it.key.first to it.value },
+            alternatives = ranked.filter { it.key.second == "normal" }.take(7)
+                .map { it.key.first to (catByLabel[it.key.first] ?: "") },
             tripGroup = worst?.key ?: "",
             tripScore = worst?.value ?: 0.0,
             embedding = e,

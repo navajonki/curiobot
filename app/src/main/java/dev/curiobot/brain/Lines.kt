@@ -6,11 +6,12 @@ package dev.curiobot.brain
  * text model's line fails a check twice.
  */
 object Lines {
-    fun pick(options: List<String>, roll: Int, word: String? = null, name: String? = null): String {
+    fun pick(options: List<String>, roll: Int, word: String? = null, name: String? = null, label: String? = null): String {
         val s = options[Math.floorMod(roll, options.size)]
         return s.replace("{word}", word ?: "thing")
             .replace("{Word}", (word ?: "thing").replaceFirstChar { it.uppercase() })
             .replace("{name}", name ?: "")
+            .replace("{label}", label ?: "something new")
     }
 
     val HATCH = listOf("Hi. I'm {name}. Show me things?", "Oh! Hello. I'm {name}. What's out there?")
@@ -54,13 +55,21 @@ object Lines {
         "pattern" to listOf("Ooh, squares and lines.", "A pattern. Dizzy."),
     )
 
-    val UNSURE = listOf("Hm. Fuzzy. Maybe a {word}?", "Is that a {word}? I can't tell.", "Something. Maybe a {word}?")
 
     val NO_CAMERA = listOf("I can't see without the camera.")
 
-    val GAME_START = listOf("I hid a seed. Which side?", "Guess! Left or right?", "Seed hidden. Where is it?")
-    val GAME_WIN = listOf("Yes! You found it.", "Found it! Again?", "Ha. That's the one.")
-    val GAME_LOSE = listOf("Nope! Other side.", "Hehe. Not there.", "Missed it. Sneaky seed.")
+    // Hunts and wishes ({label} reads like "something soft" or "a spoon").
+    val HUNT_START = listOf("Hunt time! Can you find {label}?", "Ooh, a hunt. I want to see {label}.", "Let's hunt for {label}!")
+    val HUNT_SKIP = listOf("Okay, a new hunt: {label}.", "Then how about {label}?")
+    val HUNT_REMINDER = listOf("Still hunting for {label}.", "I'm still hoping for {label}.")
+    val WISH_NEW = listOf("New day! I made a wish: {label}.", "Today I'm wishing for {label}.")
+    val WISH_SHOW = listOf("My wish today: {label}.", "I'm wishing for {label}. Someday.")
+    val WISH_DONE = listOf("My wish came true today. Hehe.")
+
+    // Teaching.
+    val TEACH_ASK = listOf("Oops! What is it, then?", "Oh! Then what is it?")
+    val TEACH_MORE = listOf("Hmm. One of these?", "Then maybe one of these?")
+    val UNSURE_ASK = listOf("Hm, fuzzy. Is it one of these?", "I'm not sure. Which is it?")
 
     val NAP = listOf("Nap time. Zzz.", "Sleepy. Night night.")
     val DOZE = listOf("I'm so sleepy. Nap time.", "Eyes heavy. Little nap.")
@@ -68,5 +77,6 @@ object Lines {
     val DREAM = listOf("Zzz... {word}... zzz.", "Mm... a {word}... zzz.")
     val DREAM_EMPTY = listOf("Zzz... nothing yet... zzz.")
     val WOKE = listOf("Mm. I'm awake.", "Hello again. I slept.")
+    val UNNAMED = listOf("No word for it yet. I'll remember how it looks.", "A thing with no name. I like it anyway.", "Hm. A mystery. I'll keep it.")
     val WOKE_EARLY = listOf("Mm? Oh. Hi. Still a bit sleepy.", "Huh? I'm up. Mostly.", "Yawn. Okay, okay. I'm here.")
 }

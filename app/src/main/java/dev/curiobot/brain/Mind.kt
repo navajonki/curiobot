@@ -5,11 +5,13 @@ import kotlin.math.min
 
 /**
  * How fast creature time runs. "Test pace" turns hours into minutes so needs,
- * boredom and naps are testable in one sitting.
+ * boredom, naps and daily wishes are testable in one sitting.
  */
 data class Pace(val test: Boolean) {
     val unitMs: Long = if (test) 60_000L else 3_600_000L
     val napMs: Long = if (test) 120_000L else 45 * 60_000L
+    /** A creature day: 24 units (24 minutes at test pace). */
+    val dayMs: Long = unitMs * 24
 }
 
 enum class Mood(val word: String) {
@@ -32,28 +34,39 @@ data class Seeing(
 
 /**
  * Everything the person can choose. [ask] is how the intent reads to the text
- * model; [labels] are code-written fallbacks ({word} gets the focus word).
+ * model; [labels] are code-written labels ({word} gets the focus word).
+ * Intents with [modelLabel] = false always use the written label.
  */
 enum class Intent(val id: String, val ask: String, val labels: List<String>, val modelLabel: Boolean = true) {
-    LOOK_CLOSER("look_closer", "look closer", listOf("Look closer", "Look closer at {word}")),
     ASK_ABOUT("ask_about", "ask what it thinks", listOf("What do you think?", "Tell me about {word}")),
     SHOW_NEW("show_new", "show something new", listOf("Show something new", "Find something new")),
-    PLAY("play", "play a game", listOf("Play a game", "Let's play")),
     REMEMBER("remember", "remember a day", listOf("Remember a day", "Remember something")),
     NAP("nap", "nap", listOf("Nap time", "Time to rest")),
     SAY_HI("say_hi", "say hello back", listOf("Say hello", "Wave hello")),
-    LET_SLEEP("let_sleep", "let it sleep", listOf("Let it sleep"), modelLabel = false),
-    PEEK("peek", "peek at its dream", listOf("Peek at its dream"), modelLabel = false),
-    WAKE("wake", "wake it gently", listOf("Wake it gently"), modelLabel = false),
-    GUESS_LEFT("guess_left", "guess left", listOf("Left side"), modelLabel = false),
-    GUESS_RIGHT("guess_right", "guess right", listOf("Right side"), modelLabel = false),
-    TRY_AGAIN("try_again", "try again", listOf("Try again"), modelLabel = false);
+    CORRECT("correct", "", listOf("Not quite"), modelLabel = false),
+    MENU("menu", "", listOf("Other things"), modelLabel = false),
+    HUNT("hunt", "", listOf("Go on a hunt"), modelLabel = false),
+    HUNT_SKIP("hunt_skip", "", listOf("A different hunt"), modelLabel = false),
+    WISH("wish", "", listOf("What's your wish?"), modelLabel = false),
+    TEACH_PICK("teach_pick", "", listOf("{word}"), modelLabel = false),
+    TEACH_MORE("teach_more", "", listOf("Other guesses"), modelLabel = false),
+    TEACH_NONE("teach_none", "", listOf("None of these"), modelLabel = false),
+    LET_SLEEP("let_sleep", "", listOf("Let it sleep"), modelLabel = false),
+    PEEK("peek", "", listOf("Peek at its dream"), modelLabel = false),
+    WAKE("wake", "", listOf("Wake it gently"), modelLabel = false),
+    TRY_AGAIN("try_again", "", listOf("Try again"), modelLabel = false);
 
     fun fallbackLabel(word: String?, variant: Int): String {
-        val usable = labels.filter { word != null || !it.contains("{word}") }
-        return usable[Math.floorMod(variant, usable.size)].replace("{word}", word ?: "")
+        val usable = labels.filter { word != null || !it.contains("{word}") }.ifEmpty { labels }
+        return usable[Math.floorMod(variant, usable.size)]
+            .replace("{word}", (word ?: "").replaceFirstChar { it.uppercase() })
     }
 }
+
+/** The word kept for things the person said none of the guesses fit. */
+const val MYSTERY = "mystery thing"
+
+fun withArticle(w: String) = (if (w.isNotEmpty() && w[0].lowercaseChar() in "aeiou") "an " else "a ") + w
 
 /** What happened this turn, as the text model hears it. */
 sealed class Event {
@@ -61,22 +74,39 @@ sealed class Event {
     open val aboutPerson: Boolean = false
     abstract fun promptLine(): String
 
-    data class Saw(val word: String, val firstTime: Boolean, val count: Int) : Event() {
-        override val requiredWord get() = word
-        override fun promptLine() = "saw: $word (" + (if (firstTime) "first time" else "seen $count times") + ")"
+    data class Saw(val word: String, val firstTime: Boolean, val count: Int, val nickname: String? = null) : Event() {
+        override val requiredWord get() = nickname ?: word
+        override fun promptLine() = if (nickname != null) "saw: $nickname the $word (an old friend, seen $count times)"
+        else "saw: $word (" + (if (firstTime) "first time" else "seen $count times") + ")"
     }
     data class SawPerson(val firstTime: Boolean) : Event() {
         override val requiredWord: String? get() = null
         override val aboutPerson get() = true
         override fun promptLine() = "saw: a person (greet them, never describe them)"
     }
-    data class Closer(val word: String) : Event() {
-        override val requiredWord get() = word
-        override fun promptLine() = "event: looking closer at the $word"
-    }
     data class About(val word: String) : Event() {
         override val requiredWord get() = word
         override fun promptLine() = "event: saying what the $word reminds it of"
+    }
+    data class Taught(val word: String) : Event() {
+        /** "None of these" leaves it without a word, so there is nothing to require. */
+        val unnamed get() = word == MYSTERY
+        override val requiredWord get() = word.takeUnless { unnamed }
+        override fun promptLine() =
+            if (unnamed) "event: has no word for this thing yet, but will remember how it looks"
+            else "event: learned that this is really ${withArticle(word)}, and will remember it"
+    }
+    data class Found(val word: String, val huntLabel: String) : Event() {
+        override val requiredWord get() = word
+        override fun promptLine() = "event: was hunting for $huntLabel and found ${withArticle(word)}"
+    }
+    data class WishGranted(val word: String, val wishLabel: String) : Event() {
+        override val requiredWord get() = word
+        override fun promptLine() = "event: its wish for $wishLabel came true when it saw ${withArticle(word)}"
+    }
+    data class Named(val word: String, val nickname: String) : Event() {
+        override val requiredWord get() = nickname
+        override fun promptLine() = "event: named this $word $nickname"
     }
     object Hello : Event() {
         override val requiredWord: String? get() = null
@@ -90,10 +120,6 @@ sealed class Event {
     object Woke : Event() {
         override val requiredWord: String? get() = null
         override fun promptLine() = "event: just woke up from a nap"
-    }
-    object Idle : Event() {
-        override val requiredWord: String? get() = null
-        override fun promptLine() = "event: waiting for something new to look at"
     }
 }
 
@@ -117,6 +143,8 @@ object Mind {
     fun tick(s: CreatureState, now: Long, pace: Pace): Boolean {
         val units = max(0L, now - s.lastTick).toDouble() / pace.unitMs
         s.lastTick = now
+        // Hunts quietly expire after a creature-day; nothing bad happens.
+        if (s.huntId != null && now - s.huntStartedAt > pace.dayMs) s.huntId = null
         if (s.asleep) {
             if (now >= s.sleepUntil) {
                 s.asleep = false
@@ -132,7 +160,11 @@ object Mind {
         return false
     }
 
-    fun react(s: CreatureState, seeing: Seeing, now: Long): Reaction {
+    /**
+     * React to something seen. With [applyNeeds] = false (a correction after the
+     * fact) the needs were already counted, so only the memory and mood update.
+     */
+    fun react(s: CreatureState, seeing: Seeing, now: Long, applyNeeds: Boolean = true): Reaction {
         val t = s.traits
         val isPerson = seeing.verdict == Verdict.PERSON
         val word = if (isPerson) "person" else seeing.label
@@ -156,12 +188,13 @@ object Mind {
             score >= 0.15 -> Mood.CONTENT
             else -> Mood.MEH
         }
-        val satDelta = 0.35 * (0.6 * wordNovelty + 0.4 * seeing.imageNovelty) *
-            (if (mood == Mood.WARY) 0.5 else 1.0)
         val before = Pair(s.satisfaction, s.energy)
-        s.satisfaction = clamp(s.satisfaction + satDelta)
-        s.energy = clamp(s.energy - ACTION_ENERGY)
-        s.interactions++
+        if (applyNeeds) {
+            val satDelta = 0.35 * (0.6 * wordNovelty + 0.4 * seeing.imageNovelty) * (if (mood == Mood.WARY) 0.5 else 1.0)
+            s.satisfaction = clamp(s.satisfaction + satDelta)
+            s.energy = clamp(s.energy - ACTION_ENERGY)
+            s.interactions++
+        }
         val sighting = prior ?: Sighting(0, now, now, mood.word, if (isPerson) "person" else seeing.cat)
         sighting.count++
         sighting.last = now
@@ -186,6 +219,14 @@ object Mind {
             s.energy - before.second, entry)
     }
 
+    /** Undo a sighting that turned out to be mislabeled (before teaching relabels it). */
+    fun unrecord(s: CreatureState, word: String, at: Long) {
+        val sg = s.seen[word] ?: return
+        sg.count--
+        if (sg.count <= 0) s.seen.remove(word)
+        s.journal.removeAll { it.word == word && it.ts == at }
+    }
+
     /** The resting mood when nothing new just happened. */
     fun idleMood(s: CreatureState): Mood = when {
         s.asleep -> Mood.SLEEPY
@@ -195,48 +236,71 @@ object Mind {
         else -> Mood.CURIOUS
     }
 
-    /** The options to offer. [fresh] is true right after something was seen. */
+    /** The options to offer. [fresh] is true right after something was seen or taught. */
     fun intentsFor(s: CreatureState, fresh: Boolean): List<Intent> {
         if (s.asleep) return if (s.dreamShown) listOf(Intent.LET_SLEEP, Intent.WAKE)
             else listOf(Intent.LET_SLEEP, Intent.PEEK, Intent.WAKE)
-        val canRemember = s.journal.isNotEmpty()
-        val tired = s.energy < TIRED
+        if (fresh && s.focusKind == "person") return listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.MENU)
+        if (fresh && s.focusWord != null) return listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW, Intent.MENU)
         val out = mutableListOf<Intent>()
-        when {
-            fresh && s.focusKind == "person" -> {
-                out += Intent.SAY_HI; out += Intent.SHOW_NEW
-                if (canRemember) out += Intent.REMEMBER
-            }
-            fresh && s.focusWord != null -> {
-                out += Intent.LOOK_CLOSER; out += Intent.ASK_ABOUT; out += Intent.SHOW_NEW
-            }
-            tired -> {
-                out += Intent.NAP; out += Intent.SHOW_NEW
-                if (canRemember) out += Intent.REMEMBER
-            }
-            else -> {
-                out += Intent.SHOW_NEW
-                if (canRemember) out += Intent.REMEMBER
-            }
-        }
-        if (tired && Intent.NAP !in out) out += Intent.NAP
-        return out
+        if (s.energy < TIRED) out += Intent.NAP
+        out += Intent.SHOW_NEW
+        out += if (s.huntId != null) Intent.HUNT_SKIP else Intent.HUNT
+        if (s.wishId != null && !s.wishGranted) out += Intent.WISH
+        if (s.journal.isNotEmpty()) out += Intent.REMEMBER
+        return out.take(4)
     }
 
     /** Small costs for actions other than seeing. */
     fun spend(s: CreatureState, intent: Intent) {
         when (intent) {
-            Intent.LOOK_CLOSER, Intent.ASK_ABOUT, Intent.SAY_HI -> {
+            Intent.ASK_ABOUT, Intent.SAY_HI -> {
                 s.energy = clamp(s.energy - ACTION_ENERGY / 2); s.satisfaction = clamp(s.satisfaction + 0.03)
-            }
-            Intent.GUESS_LEFT, Intent.GUESS_RIGHT -> {
-                s.energy = clamp(s.energy - ACTION_ENERGY); s.satisfaction = clamp(s.satisfaction + 0.05)
             }
             Intent.REMEMBER -> s.energy = clamp(s.energy - ACTION_ENERGY / 3)
             else -> {}
         }
         s.interactions++
     }
+
+    fun startHunt(s: CreatureState, h: Hunt, now: Long) {
+        s.huntId = h.id
+        s.huntStartedAt = now
+        s.recentHunts += h.id
+        while (s.recentHunts.size > 5) s.recentHunts.removeAt(0)
+    }
+
+    fun completeHunt(s: CreatureState, h: Hunt, word: String, now: Long): JournalEntry {
+        s.huntId = null
+        s.huntsDone++
+        s.satisfaction = clamp(s.satisfaction + 0.25)
+        return JournalEntry(now, word, Mood.DELIGHTED.word, "Day ${dayNumber(s, now)}: found ${h.label} on a hunt: a $word.")
+            .also { s.addJournal(it) }
+    }
+
+    fun dayIndex(s: CreatureState, now: Long, pace: Pace) = ((now - s.bornAt) / pace.dayMs).toInt()
+
+    /** Make today's wish if the day has turned. Returns the new wish, or null. */
+    fun ensureWish(s: CreatureState, now: Long, pace: Pace, roll: Int): Hunt? {
+        val today = dayIndex(s, now, pace)
+        if (s.wishDay == today && s.wishId != null) return null
+        val w = Hunts.pickWish(s, roll)
+        s.wishId = w.id
+        s.wishDay = today
+        s.wishGranted = false
+        return w
+    }
+
+    fun grantWish(s: CreatureState, w: Hunt, word: String, now: Long): JournalEntry {
+        s.wishGranted = true
+        s.satisfaction = clamp(s.satisfaction + 0.25)
+        return JournalEntry(now, word, Mood.DELIGHTED.word, "Day ${dayNumber(s, now)}: my wish for ${w.label} came true: a $word.")
+            .also { s.addJournal(it) }
+    }
+
+    fun named(s: CreatureState, word: String, nickname: String, now: Long): JournalEntry =
+        JournalEntry(now, word, Mood.DELIGHTED.word, "Day ${dayNumber(s, now)}: named the $word $nickname.")
+            .also { s.addJournal(it) }
 
     fun startNap(s: CreatureState, now: Long, pace: Pace) {
         s.asleep = true

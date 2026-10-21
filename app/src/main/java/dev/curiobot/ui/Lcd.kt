@@ -26,6 +26,8 @@ data class UiState(
     val status: String = "",
     val spriteSeed: Long = 0L,
     val asleep: Boolean = false,
+    /** It has a wish today that hasn't come true yet: a small star by its name. */
+    val wish: Boolean = false,
     /** A frozen, dithered photo shown while the creature looks at it. */
     val frozen: BooleanArray? = null,
 )
@@ -109,6 +111,7 @@ class Lcd {
 
     private fun statusBar(ui: UiState) {
         textAt(ui.name, 6, 13, text, dark)
+        if (ui.wish) icon(Pix.STAR, 10 + text.measureText(ui.name).toInt(), 4)
         icon(Pix.EYE, 236, 5)
         meter(246, 6, 54, ui.satisfaction)
         icon(Pix.BOLT, 316, 5)

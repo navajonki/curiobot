@@ -18,21 +18,24 @@ class ModelLoopTest {
 
     @Test fun exportFixtures() {
         val out = JSONArray()
-        val intentsFresh = listOf(Intent.LOOK_CLOSER, Intent.ASK_ABOUT, Intent.SHOW_NEW, Intent.PLAY)
-        val intentsIdle = listOf(Intent.SHOW_NEW, Intent.PLAY, Intent.REMEMBER, Intent.NAP)
-        val intentsPerson = listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.PLAY, Intent.REMEMBER)
+        val intentsFresh = listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW, Intent.MENU)
+        val intentsIdle = listOf(Intent.SHOW_NEW, Intent.HUNT, Intent.WISH, Intent.REMEMBER)
+        val intentsPerson = listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.MENU)
         val cases = listOf(
             Triple(Mood.DELIGHTED, Event.Saw("dog", true, 1), intentsFresh),
             Triple(Mood.CURIOUS, Event.Saw("bicycle", true, 1), intentsFresh),
             Triple(Mood.DELIGHTED, Event.Saw("banana", true, 1), intentsFresh),
-            Triple(Mood.BORED, Event.Saw("chair", false, 6), intentsIdle),
-            Triple(Mood.WARY, Event.Saw("laptop", true, 1), intentsFresh),
-            Triple(Mood.CONTENT, Event.Saw("fern", false, 2), intentsFresh),
+            Triple(Mood.BORED, Event.Saw("chair", false, 6), intentsFresh),
             Triple(Mood.FRIENDLY, Event.SawPerson(true), intentsPerson),
-            Triple(Mood.FRIENDLY, Event.Hello, intentsIdle),
-            Triple(Mood.DELIGHTED, Event.Closer("butterfly"), intentsFresh),
             Triple(Mood.CURIOUS, Event.About("mug"), intentsFresh),
             Triple(Mood.CONTENT, Event.Recall(JournalEntry(0, "tiger", "delighted", "Day 2: first tiger. Loved it.")), intentsIdle),
+            Triple(Mood.CURIOUS, Event.Taught("cookie jar"), intentsFresh),
+            Triple(Mood.CURIOUS, Event.Taught(MYSTERY), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.Found("pillow", "something soft"), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.Found("spoon", "a spoon"), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.WishGranted("apple", "something to eat"), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.Named("mug", "Mugsby"), intentsFresh),
+            Triple(Mood.CONTENT, Event.Saw("mug", false, 5, "Mugsby"), intentsFresh),
             Triple(Mood.CONTENT, Event.Woke, intentsIdle),
         )
         for (seed in listOf(11L, 222L, 3333L)) {

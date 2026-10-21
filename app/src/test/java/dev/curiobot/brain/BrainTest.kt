@@ -95,7 +95,7 @@ class MindTest {
         val r = Mind.react(s, Seeing(Verdict.PERSON, "person", "person", 0.9, 1.0), 1_000)
         assertEquals(Mood.FRIENDLY, r.mood)
         assertEquals("Day 1: met a person.", r.journal?.text)
-        assertEquals(listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.REMEMBER), Mind.intentsFor(s, fresh = true))
+        assertEquals(listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.MENU), Mind.intentsFor(s, fresh = true))
     }
 
     @Test fun boredomCreepsInButNothingDies() {
@@ -122,9 +122,9 @@ class MindTest {
 
     @Test fun idleOptionsWithoutMemories() {
         val s = creature()
-        assertEquals(listOf(Intent.SHOW_NEW), Mind.intentsFor(s, fresh = false))
+        assertEquals(listOf(Intent.SHOW_NEW, Intent.HUNT), Mind.intentsFor(s, fresh = false))
         s.energy = 0.3
-        assertEquals(listOf(Intent.NAP, Intent.SHOW_NEW), Mind.intentsFor(s, fresh = false))
+        assertEquals(listOf(Intent.NAP, Intent.SHOW_NEW, Intent.HUNT), Mind.intentsFor(s, fresh = false))
     }
 
     @Test fun sleepAlwaysHasAWayOut() {
@@ -154,16 +154,16 @@ class PromptTest {
 
     @Test fun buildsTheTestedShape() {
         val spec = Prompt.build(t, Mood.DELIGHTED, Event.Saw("dog", true, 1),
-            listOf(Intent.LOOK_CLOSER, Intent.ASK_ABOUT, Intent.SHOW_NEW, Intent.PLAY))
+            listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW, Intent.MENU))
         assertTrue(spec.user.contains("saw: dog (first time)"))
         assertTrue(spec.user.contains("mention: dog\n"))
-        assertTrue(spec.user.endsWith("intents: look closer | ask what it thinks | show something new | play a game"))
-        assertTrue(spec.system.contains("4: <label>"))
+        assertTrue(spec.user.endsWith("intents: ask what it thinks | show something new"))
+        assertTrue(spec.system.contains("2: <label>"))
         assertEquals("dog", spec.requiredWord)
     }
 
     @Test fun fixedLabelIntentsAreNotSentToTheModel() {
-        val spec = Prompt.build(t, Mood.SLEEPY, Event.Idle, listOf(Intent.LET_SLEEP, Intent.PEEK))
+        val spec = Prompt.build(t, Mood.SLEEPY, Event.Woke, listOf(Intent.LET_SLEEP, Intent.PEEK))
         assertTrue(spec.user.endsWith("intents: "))
         assertTrue(spec.system.contains("write 0 short"))
     }
@@ -249,22 +249,5 @@ class SafetyTest {
         assertTrue(Safety.checkLabel("What is it like?").allOk())
         assertFalse(Safety.checkLabel("You're the best friend ever").allOk())
         assertFalse(Safety.checkLabel("Tell me your address now please ok").allOk())
-    }
-}
-
-class MemoryTest {
-    @Test fun noveltyFallsForRepeats() {
-        val f = File.createTempFile("mem", ".bin").apply { delete() }
-        val m = EmbeddingMemory(f, dim = 4)
-        val a = floatArrayOf(1f, 0f, 0f, 0f)
-        val b = floatArrayOf(0f, 1f, 0f, 0f)
-        assertEquals(1.0, m.novelty(a), 1e-9)
-        m.add(a)
-        assertEquals(0.0, m.novelty(a), 1e-9)
-        assertEquals(1.0, m.novelty(b), 1e-9)
-        m.save()
-        val m2 = EmbeddingMemory(f, dim = 4).apply { load() }
-        assertEquals(1, m2.size)
-        f.delete()
     }
 }
