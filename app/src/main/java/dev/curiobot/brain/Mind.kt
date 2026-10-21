@@ -44,6 +44,7 @@ enum class Intent(val id: String, val ask: String, val labels: List<String>, val
     SAY_HI("say_hi", "say hello back", listOf("Say hello", "Wave hello")),
     LET_SLEEP("let_sleep", "let it sleep", listOf("Let it sleep"), modelLabel = false),
     PEEK("peek", "peek at its dream", listOf("Peek at its dream"), modelLabel = false),
+    WAKE("wake", "wake it gently", listOf("Wake it gently"), modelLabel = false),
     GUESS_LEFT("guess_left", "guess left", listOf("Left side"), modelLabel = false),
     GUESS_RIGHT("guess_right", "guess right", listOf("Right side"), modelLabel = false),
     TRY_AGAIN("try_again", "try again", listOf("Try again"), modelLabel = false);
@@ -108,6 +109,8 @@ data class Reaction(
 
 object Mind {
     const val DOZE_BELOW = 0.15
+    /** Below this, a nap is offered. */
+    const val TIRED = 0.45
     const val ACTION_ENERGY = 0.06
 
     /** Apply elapsed time. Returns true if the creature woke up from a nap. */
@@ -194,30 +197,29 @@ object Mind {
 
     /** The options to offer. [fresh] is true right after something was seen. */
     fun intentsFor(s: CreatureState, fresh: Boolean): List<Intent> {
-        if (s.asleep) return if (s.dreamShown) listOf(Intent.LET_SLEEP) else listOf(Intent.LET_SLEEP, Intent.PEEK)
+        if (s.asleep) return if (s.dreamShown) listOf(Intent.LET_SLEEP, Intent.WAKE)
+            else listOf(Intent.LET_SLEEP, Intent.PEEK, Intent.WAKE)
         val canRemember = s.journal.isNotEmpty()
-        val tired = s.energy < 0.4
+        val tired = s.energy < TIRED
         val out = mutableListOf<Intent>()
         when {
             fresh && s.focusKind == "person" -> {
-                out += Intent.SAY_HI; out += Intent.SHOW_NEW; out += Intent.PLAY
-                out += if (canRemember) Intent.REMEMBER else Intent.NAP
+                out += Intent.SAY_HI; out += Intent.SHOW_NEW
+                if (canRemember) out += Intent.REMEMBER
             }
             fresh && s.focusWord != null -> {
                 out += Intent.LOOK_CLOSER; out += Intent.ASK_ABOUT; out += Intent.SHOW_NEW
-                out += if (tired) Intent.NAP else Intent.PLAY
             }
             tired -> {
                 out += Intent.NAP; out += Intent.SHOW_NEW
                 if (canRemember) out += Intent.REMEMBER
-                out += Intent.PLAY
             }
             else -> {
-                out += Intent.SHOW_NEW; out += Intent.PLAY
+                out += Intent.SHOW_NEW
                 if (canRemember) out += Intent.REMEMBER
-                out += Intent.NAP
             }
         }
+        if (tired && Intent.NAP !in out) out += Intent.NAP
         return out
     }
 
@@ -242,6 +244,17 @@ object Mind {
         s.dreamShown = false
         s.focusWord = null
         s.focusKind = null
+    }
+
+    /** Woken early: keeps whatever rest it got so far, no penalty. */
+    fun wakeEarly(s: CreatureState, now: Long, pace: Pace): Double {
+        val start = s.sleepUntil - pace.napMs
+        val progress = ((now - start).toDouble() / pace.napMs).coerceIn(0.0, 1.0)
+        s.energy = clamp(s.energy + (1.0 - s.energy) * progress)
+        s.asleep = false
+        s.dreamShown = false
+        s.lastTick = now
+        return progress
     }
 
     fun shouldDoze(s: CreatureState) = !s.asleep && s.energy < DOZE_BELOW

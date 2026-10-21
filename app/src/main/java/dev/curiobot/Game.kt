@@ -240,6 +240,15 @@ class Game(private val ctx: Context) {
                 showIdle(if (word == null) Lines.pick(Lines.DREAM_EMPTY, 0) else Lines.pick(Lines.DREAM, rng.nextInt(), word),
                     labelsFor(intents))
             }
+            Intent.WAKE -> {
+                val progress = Mind.wakeEarly(state, System.currentTimeMillis(), pace)
+                mood = Mood.SLEEPY
+                intents = Mind.intentsFor(state, fresh = false)
+                Telemetry.log("wake_early", JSONObject().put("nap_progress", Math.round(progress * 100) / 100.0)
+                    .put("energy", Math.round(state.energy * 100) / 100.0))
+                showIdle(Lines.pick(Lines.WOKE_EARLY, rng.nextInt()), labelsFor(intents))
+                saveState()
+            }
             Intent.TRY_AGAIN -> scope.launch { prepareTextModel() }
         }
     }

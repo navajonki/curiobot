@@ -95,7 +95,7 @@ class MindTest {
         val r = Mind.react(s, Seeing(Verdict.PERSON, "person", "person", 0.9, 1.0), 1_000)
         assertEquals(Mood.FRIENDLY, r.mood)
         assertEquals("Day 1: met a person.", r.journal?.text)
-        assertEquals(listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.PLAY, Intent.REMEMBER), Mind.intentsFor(s, fresh = true))
+        assertEquals(listOf(Intent.SAY_HI, Intent.SHOW_NEW, Intent.REMEMBER), Mind.intentsFor(s, fresh = true))
     }
 
     @Test fun boredomCreepsInButNothingDies() {
@@ -113,7 +113,7 @@ class MindTest {
         val pace = Pace(test = true)
         assertTrue(Mind.shouldDoze(s))
         Mind.startNap(s, 0, pace)
-        assertEquals(listOf(Intent.LET_SLEEP, Intent.PEEK), Mind.intentsFor(s, fresh = false))
+        assertEquals(listOf(Intent.LET_SLEEP, Intent.PEEK, Intent.WAKE), Mind.intentsFor(s, fresh = false))
         assertFalse(Mind.tick(s, pace.napMs - 1, pace))
         assertTrue(Mind.tick(s, pace.napMs + 1, pace))
         assertEquals(1.0, s.energy, 1e-9)
@@ -122,7 +122,22 @@ class MindTest {
 
     @Test fun idleOptionsWithoutMemories() {
         val s = creature()
-        assertEquals(listOf(Intent.SHOW_NEW, Intent.PLAY, Intent.NAP), Mind.intentsFor(s, fresh = false))
+        assertEquals(listOf(Intent.SHOW_NEW), Mind.intentsFor(s, fresh = false))
+        s.energy = 0.3
+        assertEquals(listOf(Intent.NAP, Intent.SHOW_NEW), Mind.intentsFor(s, fresh = false))
+    }
+
+    @Test fun sleepAlwaysHasAWayOut() {
+        val s = creature()
+        val pace = Pace(test = true)
+        s.energy = 0.2
+        Mind.startNap(s, 0, pace)
+        s.dreamShown = true
+        assertTrue(Intent.WAKE in Mind.intentsFor(s, fresh = false))
+        val progress = Mind.wakeEarly(s, pace.napMs / 2, pace)
+        assertEquals(0.5, progress, 1e-9)
+        assertEquals(0.6, s.energy, 1e-9)
+        assertFalse(s.asleep)
     }
 
     @Test fun memoriesPreferHappyOnes() {

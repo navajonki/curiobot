@@ -68,4 +68,5 @@ object Lines {
     val DREAM = listOf("Zzz... {word}... zzz.", "Mm... a {word}... zzz.")
     val DREAM_EMPTY = listOf("Zzz... nothing yet... zzz.")
     val WOKE = listOf("Mm. I'm awake.", "Hello again. I slept.")
+    val WOKE_EARLY = listOf("Mm? Oh. Hi. Still a bit sleepy.", "Huh? I'm up. Mostly.", "Yawn. Okay, okay. I'm here.")
 }
