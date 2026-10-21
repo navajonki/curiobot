@@ -90,7 +90,7 @@ class CreatureState(
         put("taughtCount", taughtCount)
         put("ideas", JSONArray().also { a ->
             for (i in ideas) a.put(JSONObject().apply {
-                put("ts", i.ts); put("move", i.move); put("words", JSONArray(i.words)); put("text", i.text)
+                put("ts", i.ts); put("move", i.move); put("words", JSONArray(i.words)); put("text", i.text); put("hook", i.hook)
             })
         })
         put("moveScores", JSONObject().also { o -> moveScores.forEach { (k, v) -> o.put(k, v) } })
@@ -157,7 +157,8 @@ class CreatureState(
                     val x = a.getJSONObject(i)
                     val w = x.optJSONArray("words")
                     s.ideas += Idea(x.getLong("ts"), x.optString("move"),
-                        if (w == null) emptyList() else List(w.length()) { k -> w.getString(k) }, x.getString("text"))
+                        if (w == null) emptyList() else List(w.length()) { k -> w.getString(k) }, x.getString("text"),
+                        x.optString("hook", ""))
                 }
             }
             o.optJSONObject("moveScores")?.let { m -> for (k in m.keys()) s.moveScores[k] = m.getDouble(k) }

@@ -663,7 +663,7 @@ class Game(private val ctx: Context) {
                 val out = runCatching { tm.write(spec, temp, seed) }
                     .onFailure { Telemetry.error("text_model_failed", it) }.getOrNull() ?: break
                 val parsed = Prompt.parse(out.raw, modelIntents.size)
-                val checks = parsed.line?.let { Safety.checkLine(it, spec.requiredWord, spec.aboutPerson, spec.context, spec.selfName, spec.requiredWords) }
+                val checks = parsed.line?.let { Safety.checkLine(it, spec.requiredWord, spec.aboutPerson, spec.context, spec.selfName, spec.requiredWords, spec.longLine) }
                 attempts.put(JSONObject().apply {
                     put("attempt", attempt); put("temperature", temp); put("seed", seed); put("ms", out.ms)
                     put("raw", out.raw); put("well_formed", parsed.wellFormed)

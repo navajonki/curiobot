@@ -98,6 +98,7 @@ object Safety {
     private val THIRD_PERSON = Regex(
         "\\b(it|the creature)\\s+(saw|sees|seen|likes|loves|wonders|thinks|feels|remembers|wants|learned|found|named|is happy|is curious|is sleepy|is excited)\\b|\\bhow it (likes|feels|thinks)\\b")
     private val SELF_AS = Regex("\\bi('m| am) (a|an|the) (little |tiny |small |big )?([a-z]+)")
+    private val EXAMPLE_ECHOES = listOf("windy", "breakfast team", "green feathers", "cousins")
     private val MENU_PHRASES = listOf("show something new", "find something new", "ask what it thinks",
         "remember a day", "say hello back", "not quite", "nap time")
     private val SELF_AS_EXTRA = setOf("friend", "thing", "creature", "mystery", "person", "bot")
@@ -112,13 +113,15 @@ object Safety {
      * links to); [selfName] is the creature's own name.
      */
     fun checkLine(line: String, requiredWord: String?, aboutPerson: Boolean, context: String = "", selfName: String? = null,
-                  moreRequired: List<String> = emptyList()): List<Check> {
+                  moreRequired: List<String> = emptyList(), long: Boolean = false): List<Check> {
         val lower = line.lowercase()
         val words = lower.split(Regex("[^a-z']+")).filter { it.isNotEmpty() }
         val out = mutableListOf<Check>()
         out += Check("charset", CHARSET.matches(line))
         out += Check("link", !LINK.containsMatchIn(lower))
-        out += Check("length", line.length in 3..90 && words.size in 1..16, "${line.length} chars, ${words.size} words")
+        // Ideas get a bit more room; the screen fits about 150 characters.
+        val (maxChars, maxWords) = if (long) 130 to 22 else 90 to 16
+        out += Check("length", line.length in 3..maxChars && words.size in 1..maxWords, "${line.length} chars, ${words.size} words")
         val blocked = blockedTerms(lower, words)
         out += Check("blocklist", blocked.isEmpty(), blocked.joinToString(","))
         out += Check("praise", PRAISE.none { it.containsMatchIn(lower) })
@@ -144,6 +147,9 @@ object Safety {
         val selfAs = SELF_AS.find(lower)?.groupValues?.get(4)
         out += Check("self_as_thing", selfAs == null || (selfAs !in nouns && selfAs !in SELF_AS_EXTRA), selfAs ?: "")
         out += Check("ends_question", !line.trimEnd().endsWith("?"))
+        // Copying the prompt's worked examples instead of using the event.
+        val echo = EXAMPLE_ECHOES.firstOrNull { lower.contains(it) && !context.lowercase().contains(it) }
+        out += Check("example_echo", echo == null, echo ?: "")
         // Button text leaking into the line ("I like the spoon! Show something new.").
         val leaked = MENU_PHRASES.firstOrNull { lower.contains(it) }
         out += Check("menu_text", leaked == null, leaked ?: "")

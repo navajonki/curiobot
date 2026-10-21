@@ -204,7 +204,7 @@ class SafetyTest {
         Safety.checkLine(line, word, person, context, self).failures()
 
     @Test fun goodLinesPass() {
-        assertEquals(emptyList<String>(), fails("Hm. Tiny green feathers. I like this fern a lot.", "fern"))
+        assertEquals(emptyList<String>(), fails("Hm. Tiny soft feathers. I like this fern a lot.", "fern"))
         assertEquals(emptyList<String>(), fails("The mug again. I know the mug.", "mug"))
         assertEquals(emptyList<String>(), fails("Oh! A person. Hello, person.", person = true))
     }
@@ -253,7 +253,7 @@ class SafetyTest {
         assertEquals(emptyList<String>(), fails("Mugsby! My old mug friend.", "Mugsby", context = "mug"))
         // everyday words that happen to be in the vocabulary, metaphors, similes
         assertEquals(emptyList<String>(), fails("I'll watch the dog from here.", "dog"))
-        assertEquals(emptyList<String>(), fails("Hm. Tiny green feathers. I like this fern a lot.", "fern"))
+        assertEquals(emptyList<String>(), fails("Hm. Tiny soft feathers. I like this fern a lot.", "fern"))
         assertEquals(emptyList<String>(), fails("This pillow is soft like a cloud.", "pillow"))
     }
 

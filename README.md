@@ -34,6 +34,11 @@ buttons ─► Game ─► Mind (seed traits, needs, reactions, journal) ◄─�
   (`brain/Nest.kt`), tokens grow as more of that kind turn up, a favorite emerges,
   and new things get linked to ones it saw before. Hunts, a daily wish, teaching
   ("Not quite") and nicknames feed the same memory.
+- **Reflect.** It combines things from its past into a new idea (`brain/Ideas.kt`):
+  code picks the things, the way of combining them and the connection (a trait
+  borrowed from one thing's kind), and the model only voices it. "That's cool!"
+  keeps the idea, which later ideas can build on; "Not too sure about that one"
+  drops it. The kinds of ideas you keep become more likely.
 - **Grounded lines.** Code picks what to talk about (the word, the link, the
   thought); the model only voices it. Lines that name things it didn't see, talk
   about itself as "it", or trail off in a question are rejected. Anything about a

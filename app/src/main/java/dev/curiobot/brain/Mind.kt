@@ -161,7 +161,7 @@ sealed class Event {
         override val requiredWord get() = plan.required.firstOrNull()
         override val requiredWords get() = plan.required
         override val context get() = (plan.things.flatMap { listOfNotNull(it.word, it.nickname) } +
-            listOfNotNull(plan.kinds, plan.idea?.text)).joinToString(" ")
+            listOfNotNull(plan.kinds, plan.idea?.text, plan.hook)).joinToString(" ")
         override fun promptLine() = Ideas.promptLine(plan)
     }
     object Hello : Event() {

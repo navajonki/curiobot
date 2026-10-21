@@ -3,14 +3,16 @@ package dev.curiobot.brain
 import kotlin.random.Random
 
 /** A thought the creature had and the person chose to keep ("That's cool!"). */
-data class Idea(val ts: Long, val move: String, val words: List<String>, val text: String)
+data class Idea(val ts: Long, val move: String, val words: List<String>, val text: String, val hook: String = "")
 
 /**
  * Reflection: the creature combines things from its past into a new thought.
  *
  * Code does the thinking that matters: it picks what to combine (things it has
- * seen, nicknamed friends, nest kinds, ideas it already kept) and how (a
- * [Move]). The text model only puts that into words, and the person decides
+ * seen, nicknamed friends, nest kinds, ideas it already kept), how (a [Move]),
+ * and the connection itself (a [HOOKS] trait, often borrowed from one thing's
+ * kind and applied to the other, which is where the whimsy comes from). The
+ * text model only puts that into words, and the person decides
  * whether the idea is kept. Kept ideas can be built on later, and the moves
  * the person likes become more likely, so its way of thinking drifts toward
  * what its person enjoys.
@@ -25,7 +27,7 @@ object Ideas {
     enum class Move(val id: String) {
         COMMON("common"),            // what two things share
         FRIENDS("friends"),          // two things as friends
-        HELPS("helps"),              // how one could help the other
+        TEAM("team"),                // two things as a team
         KIND_RULE("kind_rule"),      // a guess about a whole kind in the nest
         FAVORITE_WHY("favorite_why"),// why it likes its favorite kind
         BUILD_ON("build_on"),        // adds something new to a kept idea
@@ -37,7 +39,37 @@ object Ideas {
         val phrase get() = nickname?.let { "$it the $word" } ?: "the $word"
     }
 
-    data class Plan(val move: Move, val things: List<Thing>, val kinds: String? = null, val idea: Idea? = null) {
+    /**
+     * Traits by kind, written to follow "they both" ("they both go round and round").
+     * Short, gentle and safe on purpose: these are the only claims an idea makes.
+     */
+    val HOOKS = mapOf(
+        "animal" to listOf("like naps", "get curious", "like cozy spots", "have their own moods"),
+        "bug" to listOf("are busy all day", "like sunny spots", "are tiny explorers"),
+        "plant" to listOf("grow a little every day", "love sunlight", "like to stay very still"),
+        "nature" to listOf("have been around forever", "change with the weather", "are full of tiny details"),
+        "sky" to listOf("change all day", "are far away", "look different at night"),
+        "food" to listOf("make someone happy", "come in many colors", "smell nice"),
+        "drink" to listOf("keep someone cozy", "like being sipped slowly", "can be warm or cold"),
+        "kitchen" to listOf("help at breakfast", "get used every day", "like a tidy shelf"),
+        "furniture" to listOf("hold things up", "wait patiently", "like quiet rooms"),
+        "home" to listOf("have a special spot", "wait for someone", "keep a home cozy"),
+        "clothing" to listOf("keep someone warm", "like going outside", "go on little adventures"),
+        "toy" to listOf("like to be played with", "make people smile", "remember old games"),
+        "sport" to listOf("love to move", "like teamwork", "like a sunny day"),
+        "music" to listOf("make sounds", "like a good rhythm", "can be loud or soft"),
+        "art" to listOf("make colors", "like messy tables", "start new pictures"),
+        "tech" to listOf("hum quietly", "are full of tiny parts", "need a little power"),
+        "tool" to listOf("fix things", "like hard work", "live in a drawer"),
+        "vehicle" to listOf("go places", "have wheels", "go round and round"),
+        "place" to listOf("have doors", "stay in one spot", "are full of stories"),
+    )
+    private val HOOKS_ANY = listOf("are a little odd", "have a secret", "like being noticed")
+
+    private fun hookFor(cat: String?, rng: Random) = (HOOKS[cat] ?: HOOKS_ANY).let { it[rng.nextInt(it.size)] }
+
+    data class Plan(val move: Move, val things: List<Thing>, val kinds: String? = null, val idea: Idea? = null,
+                    val hook: String = "") {
         val key get() = move.id + ":" + things.map { it.word }.sorted().joinToString("+")
         /** The words the line has to include. */
         val required: List<String> get() = when (move) {
@@ -73,26 +105,29 @@ object Ideas {
         repeat(12) {
             val move = weighted(moves, rng) { s.moveScores[it.id] ?: SCORE_START }
             val p = when (move) {
-                Move.COMMON, Move.FRIENDS, Move.HELPS -> {
-                    // One recent thing plus one from anywhere; "in common" is more fun across kinds.
+                Move.COMMON, Move.FRIENDS, Move.TEAM -> {
+                    // One recent thing plus one from anywhere, across kinds when possible, with a trait
+                    // borrowed from either one's kind: a cup that "goes round and round" like a bicycle.
                     val a = things[rng.nextInt(minOf(6, things.size))]
-                    val pool = things.filter { it.word != a.word && (move != Move.COMMON || it.cat != a.cat) }
+                    val pool = things.filter { it.word != a.word && it.cat != a.cat }
                         .ifEmpty { things.filter { it.word != a.word } }
-                    Plan(move, listOf(a, pool[rng.nextInt(pool.size)]))
+                    val b = pool[rng.nextInt(pool.size)]
+                    Plan(move, listOf(a, b), hook = hookFor(if (rng.nextBoolean()) a.cat else b.cat, rng))
                 }
                 Move.KIND_RULE -> {
                     val slot = bigKinds[rng.nextInt(bigKinds.size)]
-                    val picked = slot.words.shuffled(rng).take(3).mapNotNull { w -> things.firstOrNull { it.word == w } }
-                    Plan(move, picked, kinds = Nest.NAMES[slot.kind])
+                    val picked = slot.words.shuffled(rng).take(2).mapNotNull { w -> things.firstOrNull { it.word == w } }
+                    Plan(move, picked, kinds = Nest.NAMES[slot.kind], hook = hookFor(slot.kind, rng))
                 }
                 Move.FAVORITE_WHY -> {
                     val inFav = things.filter { it.cat == fav }
-                    Plan(move, listOf(inFav[rng.nextInt(inFav.size)]), kinds = Nest.NAMES[fav])
+                    Plan(move, listOf(inFav[rng.nextInt(inFav.size)]), kinds = Nest.NAMES[fav], hook = hookFor(fav, rng))
                 }
                 Move.BUILD_ON -> {
                     val idea = s.ideas[s.ideas.size - 1 - rng.nextInt(minOf(5, s.ideas.size))]
                     val fresh = things.filter { it.word !in idea.words && it.name !in idea.words }
-                    if (fresh.isEmpty()) null else Plan(move, listOf(fresh[rng.nextInt(minOf(6, fresh.size))]), idea = idea)
+                    if (fresh.isEmpty() || idea.hook.isEmpty()) null
+                    else Plan(move, listOf(fresh[rng.nextInt(minOf(6, fresh.size))]), idea = idea, hook = idea.hook)
                 }
             }
             if (p != null && p.key !in s.recentIdeaKeys) {
@@ -106,7 +141,8 @@ object Ideas {
 
     /** "That's cool!": keep it, and lean toward this kind of idea. */
     fun keep(s: CreatureState, plan: Plan, text: String, now: Long): Idea {
-        val idea = Idea(now, plan.move.id, plan.things.flatMap { listOfNotNull(it.word, it.nickname) }, text)
+        val words = (plan.things.flatMap { listOfNotNull(it.word, it.nickname) } + (plan.idea?.words ?: emptyList())).distinct()
+        val idea = Idea(now, plan.move.id, words, text, plan.hook)
         s.ideas += idea
         while (s.ideas.size > MAX_KEPT) s.ideas.removeAt(0)
         s.ideasKept++
@@ -130,34 +166,50 @@ object Ideas {
         return items.last()
     }
 
-    /** The prompt's event line, in the creature's own voice. */
+    /** The prompt's event line, in the creature's own voice. Code already chose the connection. */
     fun promptLine(p: Plan): String {
         val t = p.things.map { it.phrase }
         return when (p.move) {
-            Move.COMMON -> "event: a new idea about what ${t[0]} and ${t[1]} have in common"
-            Move.FRIENDS -> "event: a new idea: ${t[0]} and ${t[1]} would be friends, and why"
-            Move.HELPS -> "event: a new idea about how ${t[0]} could help ${t[1]}"
-            Move.KIND_RULE -> "event: a new idea about my ${p.kinds}, like ${t.joinToString(" and ")}, and what they all share"
-            Move.FAVORITE_WHY -> "event: a new idea about why I like ${p.kinds} so much, like ${t[0]}"
-            Move.BUILD_ON -> "event: a new idea that adds ${t[0]} to my old idea: ${p.idea?.text}"
+            Move.COMMON -> "event: a new idea: ${t[0]} and ${t[1]} both ${p.hook}"
+            Move.FRIENDS -> "event: a new idea: ${t[0]} and ${t[1]} would be friends, since they both ${p.hook}"
+            Move.TEAM -> "event: a new idea: ${t[0]} and ${t[1]} would make a good team, since they both ${p.hook}"
+            Move.KIND_RULE -> "event: a new idea: all my ${p.kinds}, like ${t.joinToString(" and ")}, ${p.hook}"
+            Move.FAVORITE_WHY -> "event: a new idea: maybe I like ${p.kinds} because they ${p.hook}, like ${t[0]}"
+            Move.BUILD_ON -> "event: a new idea: ${t[0]} fits my old idea too, it also ${singular(p.hook)}"
         }
     }
 
-    /** Written ideas for when the model's line doesn't pass. Plain and safe, still personal. */
+    /** "go round and round" to "goes round and round", for one thing instead of two. */
+    fun singular(hook: String): String {
+        val (verb, rest) = hook.split(' ', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+        val v = when {
+            verb == "are" -> "is"
+            verb == "have" -> "has"
+            verb == "can" -> "can"
+            verb.endsWith("ch") || verb.endsWith("sh") || verb.endsWith("s") || verb.endsWith("x") ||
+                verb.endsWith("z") || verb.endsWith("o") -> verb + "es"
+            verb.endsWith("y") && verb.length > 2 && verb[verb.length - 2] !in "aeiou" -> verb.dropLast(1) + "ies"
+            else -> verb + "s"
+        }
+        return if (rest.isEmpty()) v else "$v $rest"
+    }
+
+    /** Written ideas for when the model's line doesn't pass. Same connection, plainer words. */
     fun fallback(p: Plan, roll: Int): String {
         val a = p.things.getOrNull(0)?.phrase ?: "this"
         val b = p.things.getOrNull(1)?.phrase ?: "that"
         val options = when (p.move) {
-            Move.COMMON -> listOf("I think {a} and {b} have more in common than it looks.", "Maybe {a} and {b} are secret cousins.")
-            Move.FRIENDS -> listOf("I think {a} and {b} would be good friends.", "{A} and {b}. Best buddies, I can tell.")
-            Move.HELPS -> listOf("Maybe {a} could help {b} on a busy day.", "I bet {a} would look after {b}.")
-            Move.KIND_RULE -> listOf("All my {kinds} share something. I'm sure of it.", "I think my {kinds} are a team.")
-            Move.FAVORITE_WHY -> listOf("I like {kinds} because they surprise me. Like {a}.", "Maybe I like {kinds} because of {a}.")
-            Move.BUILD_ON -> listOf("And {a} fits into my old idea too.", "Hm! {A} belongs in that idea as well.")
+            Move.COMMON -> listOf("I think {a} and {b} both {hook}.", "Maybe {a} and {b} are cousins. They both {hook}.")
+            Move.FRIENDS -> listOf("I think {a} and {b} would be friends. They both {hook}.", "{A} and {b}, best buddies. They both {hook}.")
+            Move.TEAM -> listOf("Maybe {a} and {b} are a team. They both {hook}.", "I think {a} and {b} would team up. They both {hook}.")
+            Move.KIND_RULE -> listOf("I think all my {kinds} {hook}. Like {a} and {b}.", "Maybe all {kinds} {hook}. {A} does.")
+            Move.FAVORITE_WHY -> listOf("Maybe I like {kinds} because they {hook}. Like {a}.", "I think I like {kinds} because they {hook}.")
+            Move.BUILD_ON -> listOf("{A} fits my old idea too. It also {one}.", "Oh! {A} also {one}.")
         }
         return options[Math.floorMod(roll, options.size)]
             .replace("{A}", a.replaceFirstChar { it.uppercase() }).replace("{a}", a)
             .replace("{b}", b).replace("{kinds}", p.kinds ?: "things")
+            .replace("{one}", singular(p.hook)).replace("{hook}", p.hook)
     }
 
     // What the creature says after the person decides. No guilt either way, no praise of the person.

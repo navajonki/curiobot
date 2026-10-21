@@ -53,6 +53,7 @@ class ModelLoopTest {
                     put("user", spec.user)
                     put("required_word", spec.requiredWord ?: JSONObject.NULL)
                     put("required_words", JSONArray(spec.requiredWords))
+                    put("long_line", spec.longLine)
                     put("about_person", spec.aboutPerson)
                     put("context", spec.context)
                     put("self_name", spec.selfName ?: JSONObject.NULL)
@@ -65,20 +66,21 @@ class ModelLoopTest {
 
     private fun ideaCases(): List<Triple<Mood, Event, List<Intent>>> {
         fun t(w: String, c: String, n: String? = null) = Ideas.Thing(w, c, n)
-        val kept = Idea(0, "common", listOf("cup", "bicycle"), "Maybe the cup and the bicycle both love going round.")
+        val kept = Idea(0, "common", listOf("cup", "bicycle"), "I think the cup and the bicycle both go round and round.",
+            "go round and round")
         val plans = listOf(
-            Ideas.Plan(Ideas.Move.COMMON, listOf(t("cup", "kitchen"), t("bicycle", "vehicle"))),
-            Ideas.Plan(Ideas.Move.COMMON, listOf(t("mug", "kitchen", "Mugsby"), t("fern", "plant"))),
-            Ideas.Plan(Ideas.Move.COMMON, listOf(t("chair", "furniture"), t("tree", "plant"))),
-            Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("pillow", "home"), t("cat", "animal"))),
-            Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("jacket", "clothing"), t("umbrella", "home"))),
-            Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("mug", "kitchen", "Mugsby"), t("spoon", "kitchen"))),
-            Ideas.Plan(Ideas.Move.HELPS, listOf(t("spoon", "kitchen"), t("banana", "food"))),
-            Ideas.Plan(Ideas.Move.HELPS, listOf(t("lamp", "home"), t("book", "home"))),
-            Ideas.Plan(Ideas.Move.KIND_RULE, listOf(t("cup", "kitchen"), t("fork", "kitchen"), t("jar", "kitchen")), kinds = "kitchen things"),
-            Ideas.Plan(Ideas.Move.KIND_RULE, listOf(t("dog", "animal"), t("cat", "animal"), t("rabbit", "animal")), kinds = "animals"),
-            Ideas.Plan(Ideas.Move.FAVORITE_WHY, listOf(t("spoon", "kitchen")), kinds = "kitchen things"),
-            Ideas.Plan(Ideas.Move.BUILD_ON, listOf(t("pen", "art")), idea = kept),
+            Ideas.Plan(Ideas.Move.COMMON, listOf(t("cup", "kitchen"), t("bicycle", "vehicle")), hook = "go round and round"),
+            Ideas.Plan(Ideas.Move.COMMON, listOf(t("mug", "kitchen", "Mugsby"), t("fern", "plant")), hook = "love sunlight"),
+            Ideas.Plan(Ideas.Move.COMMON, listOf(t("chair", "furniture"), t("tree", "plant")), hook = "wait patiently"),
+            Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("pillow", "home"), t("cat", "animal")), hook = "like naps"),
+            Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("jacket", "clothing"), t("umbrella", "home")), hook = "like going outside"),
+            Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("mug", "kitchen", "Mugsby"), t("spoon", "kitchen")), hook = "help at breakfast"),
+            Ideas.Plan(Ideas.Move.TEAM, listOf(t("spoon", "kitchen"), t("banana", "food")), hook = "make someone happy"),
+            Ideas.Plan(Ideas.Move.TEAM, listOf(t("lamp", "home"), t("bicycle", "vehicle")), hook = "go places"),
+            Ideas.Plan(Ideas.Move.KIND_RULE, listOf(t("cup", "kitchen"), t("fork", "kitchen")), kinds = "kitchen things", hook = "help at breakfast"),
+            Ideas.Plan(Ideas.Move.KIND_RULE, listOf(t("dog", "animal"), t("cat", "animal")), kinds = "animals", hook = "like naps"),
+            Ideas.Plan(Ideas.Move.FAVORITE_WHY, listOf(t("spoon", "kitchen")), kinds = "kitchen things", hook = "get used every day"),
+            Ideas.Plan(Ideas.Move.BUILD_ON, listOf(t("pen", "art")), idea = kept, hook = kept.hook),
         )
         return plans.map { Triple(Mood.CURIOUS, Event.Thought(it) as Event, listOf(Intent.KEEP_IDEA, Intent.DROP_IDEA)) }
     }
@@ -105,7 +107,8 @@ class ModelLoopTest {
                 Safety.checkLine(it, o.optString("required_word").takeIf { w -> !o.isNull("required_word") && w.isNotEmpty() },
                     o.getBoolean("about_person"), o.optString("context", ""),
                     o.optString("self_name").takeIf { w -> !o.isNull("self_name") && w.isNotEmpty() },
-                    o.optJSONArray("required_words")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList())
+                    o.optJSONArray("required_words")?.let { a -> List(a.length()) { a.getString(it) } } ?: emptyList(),
+                    o.optBoolean("long_line", false))
             }
             val fails = checks?.failures() ?: listOf("no_line")
             if (fails.isEmpty()) linesOk++

@@ -20,6 +20,8 @@ object Prompt {
         val selfName: String? = null,
         /** All words the line must include (more than one for ideas). */
         val requiredWords: List<String> = listOfNotNull(requiredWord),
+        /** Ideas may run a little longer. */
+        val longLine: Boolean = false,
     )
 
     data class Parsed(val line: String?, val labels: List<String?>, val wellFormed: Boolean)
@@ -30,7 +32,7 @@ object Prompt {
             "Write ONE short line the creature says (under 12 words), about the thing in the event or how it feels. " +
             "If there is a mention line, the creature's line must include those words. " +
             "The creature speaks as I and only talks about what is in the event. It does not ask questions. " +
-            "For a new idea, say it as a playful guess that starts with Maybe or I think. " +
+            "For a new idea, say that idea as a playful guess that starts with Maybe or I think. " +
             "Never describe or praise the person. Never give advice or tell the person to do anything. " +
             (if (n > 0) "Then write $n short button labels (1 to 4 words each) that match the given intents, in order. " else "") +
             "Use exactly this format:\nSAY: <line>" + (if (n > 0) "\n$slots" else "")
@@ -51,8 +53,8 @@ object Prompt {
     /** Ideas get their own second example, since a 0.6B model copies the shape it's shown. */
     val IDEA_EXAMPLE =
         "name: Zub\npersonality: bold\nstyle: blunt and funny\nmood: curious\n" +
-            "event: a new idea about what the spoon and the moon have in common\nmention: spoon, moon" to
-            "SAY: Maybe the spoon is a tiny moon for soup. Both are round and shiny."
+            "event: a new idea: the sock and the kite both love windy days\nmention: sock, kite" to
+            "SAY: I think the sock and the kite are cousins. They both love windy days!"
 
     fun build(t: Traits, mood: Mood, event: Event, intents: List<Intent>): Spec {
         val modelIntents = intents.filter { it.modelLabel }
@@ -67,7 +69,7 @@ object Prompt {
         }.trimEnd()
         val examples = if (event is Event.Thought) listOf(EXAMPLES[0], IDEA_EXAMPLE) else EXAMPLES
         return Spec(system(modelIntents.size), examples, user, event.requiredWord, event.aboutPerson, intents,
-            event.context, t.name, event.requiredWords)
+            event.context, t.name, event.requiredWords, longLine = event is Event.Thought)
     }
 
     private val SAY = Regex("^\\s*SAY\\s*:\\s*(.+?)\\s*$", RegexOption.IGNORE_CASE)

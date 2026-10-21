@@ -264,15 +264,15 @@ class IdeasTest {
 
     @Test fun keepingAndDroppingShapeWhatItThinksAbout() {
         val s = creature("cup" to "kitchen", "fern" to "plant")
-        val p = Ideas.Plan(Ideas.Move.FRIENDS, Ideas.material(s).take(2))
+        val p = Ideas.Plan(Ideas.Move.FRIENDS, Ideas.material(s).take(2), hook = "like naps")
         Ideas.keep(s, p, "I think the cup and the fern would be friends.", 5_000)
         assertEquals(1, s.ideas.size)
         assertEquals(1.5, s.moveScores["friends"]!!, 1e-9)
         assertTrue(s.journal.last().text.contains("new idea"))
-        Ideas.drop(s, Ideas.Plan(Ideas.Move.HELPS, p.things))
-        assertEquals(0.7, s.moveScores["helps"]!!, 1e-9)
-        repeat(10) { Ideas.drop(s, Ideas.Plan(Ideas.Move.HELPS, p.things)) }
-        assertEquals("never drops to zero, so nothing is gone for good", 0.3, s.moveScores["helps"]!!, 1e-9)
+        Ideas.drop(s, Ideas.Plan(Ideas.Move.TEAM, p.things))
+        assertEquals(0.7, s.moveScores["team"]!!, 1e-9)
+        repeat(10) { Ideas.drop(s, Ideas.Plan(Ideas.Move.TEAM, p.things)) }
+        assertEquals("never drops to zero, so nothing is gone for good", 0.3, s.moveScores["team"]!!, 1e-9)
         // a kept idea can be built on
         Mind.react(s, Seeing(Verdict.NORMAL, "pen", "art", 0.9, 1.0), 6_000)
         val rng = kotlin.random.Random(11)
@@ -287,7 +287,8 @@ class IdeasTest {
 
     @Test fun ideaPromptsUseTheIdeaExampleAndNoLabels() {
         val s = creature("cup" to "kitchen", "bicycle" to "vehicle")
-        val p = Ideas.Plan(Ideas.Move.COMMON, Ideas.material(s))
+        val p = Ideas.Plan(Ideas.Move.COMMON, Ideas.material(s), hook = "go places")
+        assertTrue(Event.Thought(p).promptLine().endsWith("both go places"))
         val spec = Prompt.build(s.traits, Mood.CURIOUS, Event.Thought(p), listOf(Intent.KEEP_IDEA, Intent.DROP_IDEA))
         assertTrue(spec.user.contains("mention: bicycle, cup") || spec.user.contains("mention: cup, bicycle"))
         assertFalse(spec.user.contains("intents:"))
@@ -299,6 +300,20 @@ class IdeasTest {
             spec.requiredWord, false, spec.context, null, spec.requiredWords).failures())
         // the written fallback mentions what it combined
         val f = Ideas.fallback(p, 0)
-        assertTrue(f.contains("cup") && f.contains("bicycle"))
+        assertTrue(f.contains("cup") && f.contains("bicycle") && f.contains("go places"))
+    }
+
+    @Test fun singularHooksReadRight() {
+        assertEquals("goes round and round", Ideas.singular("go round and round"))
+        assertEquals("is far away", Ideas.singular("are far away"))
+        assertEquals("has wheels", Ideas.singular("have wheels"))
+        assertEquals("fixes things", Ideas.singular("fix things"))
+        assertEquals("can be loud or soft", Ideas.singular("can be loud or soft"))
+        assertEquals("hums quietly", Ideas.singular("hum quietly"))
+        assertEquals("carries", Ideas.singular("carry"))
+        for (hooks in Ideas.HOOKS.values) for (h in hooks) {
+            assertTrue(h, Safety.checkLine("I think the cup and the fern both $h.", "cup", false, "cup fern $h").allOk())
+        }
+        assertEquals(Nest.KINDS.toSet(), Ideas.HOOKS.keys)
     }
 }
