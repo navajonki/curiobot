@@ -188,6 +188,13 @@ class PromptTest {
     }
 }
 
+class CountsTest {
+    @Test fun smallCountsPassLongNumbersDont() {
+        assertTrue(Safety.checkLine("The rabbit makes 3 animals in my nest.", "rabbit", false, "animals nest").allOk())
+        assertFalse(Safety.checkLine("The rabbit lives at 1234 Elm.", "rabbit", false, "").allOk())
+    }
+}
+
 class TidyTest {
     @Test fun dropsEchoedButtonsAndTrailingQuestions() {
         assertEquals("I like the spoon!", Prompt.tidy("I like the spoon! Show something new."))

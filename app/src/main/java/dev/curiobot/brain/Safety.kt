@@ -13,7 +13,9 @@ package dev.curiobot.brain
 object Safety {
     data class Check(val name: String, val ok: Boolean, val detail: String = "")
 
-    private val CHARSET = Regex("^[A-Za-z][A-Za-z ,.'!?-]*$")
+    private val CHARSET = Regex("^[A-Za-z][A-Za-z0-9 ,.'!?-]*$")
+    /** Small counts ("3 animals") are fine; longer numbers never are. */
+    private val LONG_NUMBER = Regex("\\d{3,}")
     // Letters and dots alone can still spell a web address.
     private val LINK = Regex("(www\\.|https?|\\b[a-z]+\\.(com|org|net|io|co|ly|app|dev|me|gg|tv|xyz)\\b)")
 
@@ -118,7 +120,7 @@ object Safety {
         val lower = line.lowercase()
         val words = lower.split(Regex("[^a-z']+")).filter { it.isNotEmpty() }
         val out = mutableListOf<Check>()
-        out += Check("charset", CHARSET.matches(line))
+        out += Check("charset", CHARSET.matches(line) && !LONG_NUMBER.containsMatchIn(line))
         out += Check("link", !LINK.containsMatchIn(lower))
         // Ideas get a bit more room; the screen fits about 150 characters.
         val (maxChars, maxWords) = if (long) 140 to 26 else 90 to 16
