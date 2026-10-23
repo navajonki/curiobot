@@ -122,9 +122,9 @@ class MindTest {
 
     @Test fun idleOptionsWithoutMemories() {
         val s = creature()
-        assertEquals(listOf(Intent.SHOW_NEW, Intent.HUNT), Mind.intentsFor(s, fresh = false))
+        assertEquals(listOf(Intent.SHOW_NEW, Intent.HUNT, Intent.PLAY), Mind.intentsFor(s, fresh = false))
         s.energy = 0.3
-        assertEquals(listOf(Intent.NAP, Intent.SHOW_NEW, Intent.HUNT), Mind.intentsFor(s, fresh = false))
+        assertEquals(listOf(Intent.NAP, Intent.SHOW_NEW, Intent.HUNT, Intent.PLAY), Mind.intentsFor(s, fresh = false))
     }
 
     @Test fun sleepAlwaysHasAWayOut() {

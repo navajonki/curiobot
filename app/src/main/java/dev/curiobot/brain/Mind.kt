@@ -46,6 +46,11 @@ enum class Intent(val id: String, val ask: String, val labels: List<String>, val
     KEEP_IDEA("keep_idea", "", listOf("That's cool!"), modelLabel = false),
     DROP_IDEA("drop_idea", "", listOf("Not too sure about that one"), modelLabel = false),
     SAY_MORE("say_more", "", listOf("Say more"), modelLabel = false),
+    /** Games. */
+    PLAY("play", "", listOf("Play a game"), modelLabel = false),
+    HOT_COLD("hot_cold", "", listOf("Hot and cold"), modelLabel = false),
+    GAME_START("game_start", "", listOf("Start looking"), modelLabel = false),
+    GAME_ANOTHER("game_another", "", listOf("A different one"), modelLabel = false),
     /** On a nest kind's page. */
     THINK_KIND("think_kind", "", listOf("Think about these"), modelLabel = false),
     HUNT_KIND("hunt_kind", "", listOf("{word}"), modelLabel = false),
@@ -174,6 +179,12 @@ sealed class Event {
         override val context get() = (plan.things.flatMap { listOfNotNull(it.word, it.nickname) } +
             listOfNotNull(more.extra?.word, more.extra?.nickname, plan.kinds, plan.hook, more.content, bud)).joinToString(" ")
         override fun promptLine() = Ideas.morePromptLine(bud, more)
+    }
+    /** Won hot and cold. Written lines only: a fixed, happy moment. */
+    data class GameWon(val word: String, val seconds: Int) : Event() {
+        override val requiredWord get() = word
+        override val written get() = true
+        override fun promptLine() = "event: found the $word in a game of hot and cold, in $seconds seconds"
     }
     object Hello : Event() {
         override val requiredWord: String? get() = null
@@ -324,6 +335,7 @@ object Mind {
         if (s.wishId != null && !s.wishGranted) out += Intent.WISH
         if (Nest.kindsFound(s) > 0) out += Intent.NEST
         if (Ideas.canReflect(s)) out += Intent.REFLECT
+        out += Intent.PLAY
         return out
     }
 

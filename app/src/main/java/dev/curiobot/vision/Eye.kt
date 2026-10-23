@@ -177,6 +177,33 @@ class Eye(ctx: Context) {
         )
     }
 
+    /**
+     * Hot and cold: where [target] ranks among the ordinary words for this
+     * photo (1 = the eye's top guess) and its probability. The rank moves
+     * smoothly as the camera gets closer to the thing, which a raw yes/no
+     * can't do.
+     */
+    fun rankOf(target: String, e: FloatArray): Pair<Int, Double> {
+        val n = rows.size
+        val logits = FloatArray(n)
+        var maxL = Float.NEGATIVE_INFINITY
+        for (r in 0 until n) {
+            var dot = 0f
+            val off = r * dim
+            for (k in 0 until dim) dot += matrix[off + k] * e[k]
+            logits[r] = logitScale * dot
+            if (logits[r] > maxL) maxL = logits[r]
+        }
+        var sum = 0.0
+        val probs = DoubleArray(n) { r -> exp((logits[r] - maxL).toDouble()).also { sum += it } }
+        val byLabel = HashMap<String, Double>()
+        for (r in 0 until n) if (rows[r].kind == "normal") byLabel.merge(rows[r].label, probs[r] / sum, Double::plus)
+        val p = byLabel[target] ?: return Int.MAX_VALUE to 0.0
+        return (byLabel.values.count { it > p } + 1) to p
+    }
+
+    fun categoryOf(label: String) = catByLabel[label]
+
     fun close() = session.close()
 
     private fun normalize(v: FloatArray) {

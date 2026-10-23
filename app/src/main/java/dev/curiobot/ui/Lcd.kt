@@ -37,7 +37,24 @@ data class UiState(
     /** A nest kind's page: its token stands in for the creature. Level 0 draws an empty spot. */
     val token: String? = null,
     val tokenLevel: Int = 0,
+    /** Hot and cold overlay on the viewfinder. */
+    val hud: Hud? = null,
+    /** The photo reveal: typed out while the text model thinks ("Is it a... banana!"). */
+    val reveal: String? = null,
+    val revealAt: Long = 0L,
+    /** A banner for big moments (new kind, hunt done, found it), shown during the reveal. */
+    val fanfare: String? = null,
+    val fanfareKind: String? = null,
 )
+
+data class Hud(val label: String, val level: Double, val clue: String, val note: String? = null, val seconds: Int = 0)
+
+/** Reveal timing, shared with the game so it can hold the screen long enough. */
+object Reveal {
+    const val MS_PER_CHAR = 45L
+    const val HOLD_MS = 900L
+    fun duration(text: String) = text.length * MS_PER_CHAR + HOLD_MS
+}
 
 /** The nest screen: a token per kind of thing, filled in as they're found. */
 data class NestView(val levels: Map<String, Int>, val headline: String, val detail: String, val cursor: Int = -1)
@@ -66,7 +83,7 @@ class Lcd {
         when (ui.phase) {
             Phase.BOOT -> centered("...", 125, text)
             Phase.DOWNLOADING, Phase.WARMING -> egg(ui, tick)
-            Phase.CAMERA -> viewfinder(camera, tick)
+            Phase.CAMERA -> viewfinder(ui, camera, tick)
             else -> home(ui, tick)
         }
     }
@@ -91,8 +108,22 @@ class Lcd {
             ui.mood == Mood.DELIGHTED -> if (tick / 2 % 2 == 0) -6 else 0
             else -> if (tick / 5 % 2 == 0) 0 else 2
         }
+        // Reveal: once the guess is typed out, react: hop when happy, shiver when wary.
+        val now = System.currentTimeMillis()
+        val revealing = ui.reveal != null && ui.phase == Phase.THINKING
+        val typedFor = if (revealing) now - ui.revealAt - ui.reveal!!.length * Reveal.MS_PER_CHAR else -1L
+        var dx = 0; var dy = 0
+        if (revealing && typedFor in 0..1400) {
+            val f = (typedFor / 100).toInt()
+            when (ui.mood) {
+                Mood.DELIGHTED, Mood.CURIOUS, Mood.FRIENDLY -> dy = intArrayOf(-4, -8, -10, -8, -4, 0, -4, -6, -4, 0, 0, 0, 0, 0, 0)[f]
+                Mood.WARY -> dx = if (f % 2 == 0) -3 else 3
+                else -> dy = if (f < 4) -4 else 0
+            }
+        }
         if (ui.token != null) bigToken(ui.token, ui.tokenLevel)
-        else drawCreature(s, ui.mood, ui.asleep, blink, 14, 26 + bob, 6)
+        else drawCreature(s, ui.mood, ui.asleep, blink, 14 + dx, 26 + (if (revealing) dy else bob), 6)
+        if (revealing && ui.fanfare != null && typedFor >= 0) sparkles(tick)
         if (ui.asleep && ui.token == null) {
             val p = tick % 24
             textAt("z", 104, 40 - p / 3, small, dark)
@@ -103,12 +134,44 @@ class Lcd {
         outline(bx, by, bw, bh)
         // little tail toward the creature
         bar(bx - 6, by + 40, 6, 2, dark); bar(bx - 3, by + 37, 3, 3, dark)
-        val line = if (ui.phase == Phase.THINKING) dots("", tick) else ui.line
+        val line = when {
+            revealing -> ui.reveal!!.take(((now - ui.revealAt) / Reveal.MS_PER_CHAR).toInt().coerceAtLeast(0)) +
+                (if (typedFor > 0) dots("", tick).let { if (it.isEmpty()) "" else " $it" } else "")
+            ui.phase == Phase.THINKING -> dots("", tick)
+            else -> ui.line
+        }
         val maxChars = ((bw - 16) / charW).toInt()
         wrap(line, maxChars).take(5).forEachIndexed { i, l -> textAt(l, bx + 8, by + 18 + i * 16, text, dark) }
         header(ui.title, 124)
-        options(ui, top = 140)
+        if (revealing && ui.fanfare != null) fanfare(ui.fanfare, ui.fanfareKind, tick) else options(ui, top = 140)
         if (ui.phase == Phase.ERROR && ui.status.isNotEmpty()) textAt(ui.status, 8, H - 4, small, dark)
+    }
+
+    /** A big-moment banner where the options usually are, with the kind's token if there is one. */
+    private fun fanfare(textLine: String, kind: String?, tick: Int) {
+        val y = 146; val h = 46
+        bar(4, y, W - 8, h, dark)
+        // marching dots along the edge
+        for (x in 8 until W - 8 step 8) if ((x / 8 + tick) % 2 == 0) { bar(x, y + 3, 3, 3, light); bar(x, y + h - 6, 3, 3, light) }
+        var tx = 16
+        kind?.let { k ->
+            Pix.NEST[k]?.let { rows ->
+                for (yy in rows.indices) for (xx in rows[yy].indices) if (rows[yy][xx] == '#') bar(16 + xx * 2, y + 11 + yy * 2, 2, 2, light)
+            }
+            tx = 48
+        }
+        val big = Paint(text).apply { textSize = 18f }
+        textAt(textLine, tx, y + 30, big, light)
+    }
+
+    /** A few twinkling pixels around the creature. */
+    private fun sparkles(tick: Int) {
+        val spots = intArrayOf(10, 30, 108, 24, 6, 100, 112, 96, 60, 22, 100, 60, 20, 64)
+        for (i in 0 until spots.size / 2) {
+            if ((tick + i) % 3 == 0) continue
+            val x = spots[i * 2]; val y = spots[i * 2 + 1]
+            bar(x, y - 3, 1, 7, dark); bar(x - 3, y, 7, 1, dark)
+        }
     }
 
     /** Up to four rows; longer lists scroll with the cursor and show arrows. */
@@ -242,11 +305,26 @@ class Lcd {
         if (ui.status.isNotEmpty()) wrap(ui.status, 54).take(3).forEachIndexed { i, l -> centered(l, 186 + i * 14, small) }
     }
 
-    private fun viewfinder(frame: BooleanArray?, tick: Int) {
+    private fun viewfinder(ui: UiState, frame: BooleanArray?, tick: Int) {
         if (frame != null) drawFrame(frame) else centered(dots("opening eyes", tick), 120, text)
+        val hud = ui.hud
+        if (hud != null) {
+            // Hot and cold: the meter on top, the clue under it.
+            bar(0, 0, W, 22, dark)
+            val big = Paint(text).apply { textSize = 16f }
+            textAt(hud.label, 8, 17, big, light)
+            val mx = 150; val mw = W - mx - 52
+            bar(mx, 5, mw, 12, light)
+            bar(mx + 2, 7, ((mw - 4) * hud.level).toInt(), 8, dark)
+            textAt("${hud.seconds}s", W - 44, 16, small, light)
+            bar(0, 22, W, 16, light); bar(0, 37, W, 1, dark)
+            textAt(hud.note ?: hud.clue, 8, 34, small, dark)
+        }
         bar(0, H - 20, W, 20, dark)
-        textAt("(o) show it", ((W - text.measureText("(o) show it")) / 2).toInt(), H - 6, text, light)
-        textAt("back", W - 8 - (text.measureText("back")).toInt(), H - 6, text, light)
+        val ok = if (hud != null) "(o) is it this?" else "(o) show it"
+        textAt(ok, ((W - text.measureText(ok)) / 2).toInt(), H - 6, text, light)
+        val back = if (hud != null) "give up" else "back"
+        textAt(back, W - 8 - (text.measureText(back)).toInt(), H - 6, text, light)
     }
 
     private fun drawFrame(frame: BooleanArray) {

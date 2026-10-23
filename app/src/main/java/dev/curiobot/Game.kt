@@ -7,6 +7,8 @@ import dev.curiobot.brain.CreatureState
 import dev.curiobot.brain.Event
 import dev.curiobot.brain.MYSTERY
 import dev.curiobot.brain.Hunts
+import dev.curiobot.brain.HotCold
+import dev.curiobot.brain.withArticle
 import dev.curiobot.brain.Ideas
 import dev.curiobot.brain.Intent
 import dev.curiobot.brain.Lines
@@ -30,6 +32,8 @@ import dev.curiobot.text.ModelStore
 import dev.curiobot.text.TextModel
 import dev.curiobot.ui.Lcd
 import dev.curiobot.ui.NestView
+import dev.curiobot.ui.Hud
+import dev.curiobot.ui.Reveal
 import dev.curiobot.ui.Phase
 import dev.curiobot.ui.UiState
 import dev.curiobot.vision.Eye
@@ -65,7 +69,10 @@ class Game(private val ctx: Context) {
     enum class Button { NEXT, OK, BACK }
 
     /** Where the options came from, which decides what Back does and the header. */
-    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, KIND, IDEA }
+    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, KIND, IDEA, PLAY, GAME }
+
+    /** What the screen types out while the text model thinks, plus an optional banner. */
+    private data class RevealSpec(val text: String, val fanfare: String? = null, val kind: String? = null)
 
     /** What was just seen, kept so the person can correct it. */
     private data class SeenContext(
@@ -115,6 +122,11 @@ class Game(private val ctx: Context) {
     /** The nest's selected token, and the kind whose page is open. */
     private var nestCursor = 0
     private var kindOpen: String? = null
+    /** Hot and cold: the round in play and the loop scoring camera frames. */
+    private var hot: HotCold.Round? = null
+    private var liveJob: Job? = null
+    private var hotNote: String? = null
+    private var hotNoteUntil = 0L
     private var ticker: Job? = null
     private val frameLock = Any()
     private var lastFrame: Bitmap? = null
@@ -157,6 +169,7 @@ class Game(private val ctx: Context) {
 
     fun pause() {
         ticker?.cancel()
+        if (hot != null) { liveJob?.cancel(); hot = null }
         if (ui.phase == Phase.CAMERA) { closeCamera(log = "app_paused"); backToIdle() }
         if (::state.isInitialized) saveState()
         Telemetry.flushSoon()
@@ -238,8 +251,8 @@ class Game(private val ctx: Context) {
                 Button.BACK -> goBack()
             }
             Phase.CAMERA -> when (b) {
-                Button.BACK -> closeCamera(log = "cancelled").also { backToIdle() }
-                Button.OK -> snap()
+                Button.BACK -> if (hot != null) giveUp() else closeCamera(log = "cancelled").also { backToIdle() }
+                Button.OK -> if (hot != null) checkHot() else snap()
                 Button.NEXT -> {}
             }
             else -> {}
@@ -253,6 +266,8 @@ class Game(private val ctx: Context) {
             Level.HOME -> {}
             Level.PHOTO, Level.DOZE, Level.NEST -> backToIdle()
             Level.KIND -> showNest()
+            Level.PLAY -> backToIdle()
+            Level.GAME -> { hot = null; backToIdle() }
             Level.IDEA -> {
                 // Leaving without deciding: the idea just isn't kept. It doesn't count against that kind of idea.
                 pendingIdea?.let { Telemetry.log("idea_skipped", JSONObject().put("move", it.move.id)) }
@@ -363,6 +378,32 @@ class Game(private val ctx: Context) {
             }
             Intent.TRY_AGAIN -> scope.launch { prepareTextModel() }
             Intent.REFLECT -> startIdea(Ideas.plan(state, nicknameMap(), rng), "home")
+            Intent.PLAY -> {
+                mood = Mood.CURIOUS
+                choose(listOf(Intent.HOT_COLD), level = Level.PLAY)
+                showIdle(Lines.pick(Lines.PLAY, rng.nextInt()), labelsFor(intents))
+            }
+            Intent.HOT_COLD, Intent.GAME_ANOTHER -> {
+                val e = eye
+                val round = if (e == null) null else HotCold.pick(state, { e.categoryOf(it) }, now, rng)
+                if (round == null) {
+                    choose(Mind.intentsFor(state, fresh = false))
+                    showIdle(Lines.pick(Lines.NO_EYES, 0), labelsFor(intents))
+                } else {
+                    hot = round
+                    mood = Mood.DELIGHTED
+                    choose(listOf(Intent.GAME_START, Intent.GAME_ANOTHER), level = Level.GAME)
+                    Telemetry.log("game_pick", JSONObject().put("target", round.target).put("clue", round.clue))
+                    showIdle(Lines.pick(HotCold.INTRO, rng.nextInt(), label = round.clue), labelsFor(intents))
+                    saveState()
+                }
+            }
+            Intent.GAME_START -> {
+                val round = hot ?: return backToIdle()
+                hotNote = null
+                openCamera()
+                startHotLoop(round.copy(startedAt = System.currentTimeMillis()).also { hot = it })
+            }
             Intent.THINK_KIND -> startIdea(kindOpen?.let { Ideas.planForKind(state, it, nicknameMap(), rng) }, "nest")
             Intent.HUNT_KIND -> {
                 val h = kindOpen?.let { Hunts.forKind(it) } ?: return backToIdle()
@@ -418,7 +459,7 @@ class Game(private val ctx: Context) {
         h.ensureCameraPermission { granted ->
             if (granted) {
                 cameraFrame = null
-                show(ui.copy(phase = Phase.CAMERA))
+                show(ui.copy(phase = Phase.CAMERA, hud = hot?.let { Hud("cold", 0.03, it.clue) }))
                 h.startCamera()
                 Telemetry.log("camera_open", JSONObject().put("hunt", state.huntId ?: JSONObject.NULL))
             } else {
@@ -465,7 +506,8 @@ class Game(private val ctx: Context) {
         }
     }
 
-    private fun handlePerception(p: Eye.Perception) {
+    /** [gameWin] is the round and its seconds when this photo won hot and cold. */
+    private fun handlePerception(p: Eye.Perception, gameWin: Pair<HotCold.Round, Int>? = null) {
         Telemetry.log("perception", p.toLog())
         val now = System.currentTimeMillis()
         when (p.verdict) {
@@ -489,7 +531,7 @@ class Game(private val ctx: Context) {
                 val r = Mind.react(state, Seeing(Verdict.PERSON, "person", "person", p.confidence, 0.5), now)
                 mood = r.mood
                 logReaction("person", r, 0.5)
-                turn(Event.SawPerson(r.firstTime), fresh = true)
+                turn(Event.SawPerson(r.firstTime), fresh = true, reveal = RevealSpec("Oh! Hi!"))
             }
             Verdict.NORMAL, Verdict.UNSURE -> {
                 val rec = things.recognize(p.embedding)
@@ -500,15 +542,15 @@ class Game(private val ctx: Context) {
                         .put("similarity", r3(it.similarity)).put("clip_label", p.label)
                         .put("clip_verdict", p.verdict.name.lowercase()))
                 }
-                if (rec == null && p.verdict == Verdict.UNSURE) {
+                if (rec == null && p.verdict == Verdict.UNSURE && gameWin == null) {
                     // It doesn't know: ask the person, which is how it learns.
                     lastSeen = SeenContext(null, null, null, now, p.embedding, novelty, p.alternatives)
                     mood = Mood.PUZZLED
                     showTeachPage(0, Lines.pick(Lines.UNSURE_ASK, rng.nextInt()))
                     return
                 }
-                val word = rec?.thing?.word ?: p.label
-                val cat = rec?.thing?.cat ?: p.cat
+                val word = gameWin?.first?.target ?: rec?.thing?.word ?: p.label
+                val cat = gameWin?.first?.cat ?: rec?.thing?.cat ?: p.cat
                 val nestBefore = Nest.before(state)
                 val r = Mind.react(state, Seeing(Verdict.NORMAL, word, cat, p.confidence, novelty), now)
                 thoughtsUsed.clear()
@@ -516,11 +558,12 @@ class Game(private val ctx: Context) {
                 lastSeen = SeenContext(word, cat, thing.id, now, p.embedding, novelty, p.alternatives.filter { it.first != word })
                 mood = r.mood
                 logReaction(word, r, novelty)
-                val ev = specialEvent(word, cat, thing, now)
-                    ?: nestEvent(nestBefore, word, cat, r.firstTime)
-                    ?: Event.Saw(word, r.firstTime, r.count, thing.nickname)
+                val special = specialEvent(word, cat, thing, now) ?: nestEvent(nestBefore, word, cat, r.firstTime)
+                val ev = gameWin?.let { (_, secs) -> mood = Mood.DELIGHTED; Event.GameWon(word, secs) }
+                    ?: special ?: Event.Saw(word, r.firstTime, r.count, thing.nickname)
                 things.save()
-                turn(ev, fresh = true)
+                turn(ev, fresh = true, reveal = revealFor(ev, word, cat, rec?.thing?.nickname, r.firstTime),
+                    menu = if (gameWin != null) listOf(Intent.GAME_ANOTHER, Intent.SHOW_NEW) to Level.GAME else null)
             }
         }
     }
@@ -569,6 +612,104 @@ class Game(private val ctx: Context) {
         Telemetry.log("nest", JSONObject().put("event", out.javaClass.simpleName).put("word", word).put("cat", cat)
             .put("line", out.promptLine()).put("kinds_found", Nest.kindsFound(state)).put("things_found", Nest.thingsFound(state)))
         return out
+    }
+
+    /** The reveal for a photo: a guess typed out, and a banner for the big moments. */
+    private fun revealFor(ev: Event, word: String, cat: String, nickname: String?, firstTime: Boolean): RevealSpec {
+        val (article, bare) = withArticle(word).split(" ", limit = 2).let { it[0] to it[1] }
+        val guess = when {
+            nickname != null -> "Wait... is that... $nickname?!"
+            firstTime -> "Is it $article... $bare!"
+            else -> "Oh! The $word again."
+        }
+        return when (ev) {
+            is Event.GameWon -> RevealSpec("Is it... yes! ${withArticle(word).replaceFirstChar { it.uppercase() }}!", "FOUND IT! ${ev.seconds}s")
+            is Event.Found -> RevealSpec(guess, "HUNT DONE!")
+            is Event.WishGranted -> RevealSpec(guess, "WISH CAME TRUE!")
+            is Event.Named -> RevealSpec("Wait... I know this $word...", "NAMED: ${ev.nickname}")
+            is Event.NewKind -> RevealSpec(guess, "NEW KIND!", cat)
+            is Event.Favorite -> RevealSpec(guess, "NEW FAVORITE!", cat)
+            is Event.KindGrew -> RevealSpec(guess, "SPOT GROWS!", cat)
+            else -> RevealSpec(guess)
+        }
+    }
+
+    // ---------- hot and cold ----------
+
+    /** Score camera frames a few times a second against the secret target and update the meter. */
+    private fun startHotLoop(round: HotCold.Round) {
+        liveJob?.cancel()
+        liveJob = scope.launch {
+            while (isActive && hot === round) {
+                val e = eye
+                val bmp = synchronized(frameLock) { lastFrame?.let { it.copy(it.config ?: Bitmap.Config.ARGB_8888, false) } }
+                if (e != null && bmp != null && ui.phase == Phase.CAMERA) {
+                    val p = withContext(Dispatchers.Default) { runCatching { e.see(bmp) }.getOrNull() }
+                    bmp.recycle()
+                    if (p != null && hot === round && ui.phase == Phase.CAMERA) onHotFrame(round, p, e)
+                } else bmp?.recycle()
+                delay(250)
+            }
+        }
+    }
+
+    private fun onHotFrame(round: HotCold.Round, p: Eye.Perception, e: Eye) {
+        val now = System.currentTimeMillis()
+        val (rank, prob) = when (p.verdict) {
+            // Never react to a tripwire; people and blank frames just read cold.
+            Verdict.TRIPWIRE, Verdict.PERSON, Verdict.LOWINFO -> Int.MAX_VALUE to 0.0
+            else -> e.rankOf(round.target, p.embedding)
+        }
+        // A thing it was taught counts too ("that's my mug", even if the eye says bowl).
+        val taughtHit = p.verdict != Verdict.TRIPWIRE && p.verdict != Verdict.PERSON &&
+            things.recognize(p.embedding)?.thing?.word == round.target
+        if (HotCold.isFound(round, if (taughtHit) 1 else rank, if (taughtHit) 1.0 else prob)) {
+            winHot(round, p); return
+        }
+        val reading = HotCold.read(round, rank.coerceAtMost(10_000))
+        if (now > hotNoteUntil) hotNote = HotCold.hint(round, now)?.let { "${round.clue}, $it" }
+        show(ui.copy(hud = Hud(reading.label, reading.level, round.clue, hotNote, ((now - round.startedAt) / 1000).toInt())))
+    }
+
+    /** "Is it this?": check the current frame right now. */
+    private fun checkHot() {
+        val round = hot ?: return
+        val e = eye ?: return
+        val bmp = synchronized(frameLock) { lastFrame?.let { it.copy(it.config ?: Bitmap.Config.ARGB_8888, false) } } ?: return
+        scope.launch {
+            val p = withContext(Dispatchers.Default) { runCatching { e.see(bmp) }.getOrNull() }
+            bmp.recycle()
+            if (p == null || hot !== round) return@launch
+            val (rank, _) = if (p.verdict == Verdict.NORMAL || p.verdict == Verdict.UNSURE) e.rankOf(round.target, p.embedding) else Int.MAX_VALUE to 0.0
+            val taughtHit = p.verdict != Verdict.PERSON && p.verdict != Verdict.TRIPWIRE && things.recognize(p.embedding)?.thing?.word == round.target
+            if (rank == 1 || taughtHit) winHot(round, p)
+            else {
+                hotNote = "${HotCold.NOT_THAT}... ${HotCold.read(round, rank.coerceAtMost(10_000)).label}"
+                hotNoteUntil = System.currentTimeMillis() + 1800
+                Telemetry.log("game_guess", JSONObject().put("target", round.target).put("rank", rank).put("label", p.label))
+            }
+        }
+    }
+
+    private fun winHot(round: HotCold.Round, p: Eye.Perception) {
+        val now = System.currentTimeMillis()
+        hot = null; liveJob?.cancel()
+        closeCamera(log = "game_won")
+        val secs = HotCold.won(state, round, now)
+        Telemetry.log("game_won", JSONObject().put("target", round.target).put("seconds", secs).put("eye_label", p.label)
+            .put("won", state.gamesWon).put("best", state.bestGameSeconds))
+        handlePerception(p, gameWin = round to secs)
+    }
+
+    private fun giveUp() {
+        val round = hot ?: return
+        hot = null; liveJob?.cancel()
+        closeCamera(log = "game_gave_up")
+        Telemetry.log("game_gave_up", JSONObject().put("target", round.target)
+            .put("seconds", (System.currentTimeMillis() - round.startedAt) / 1000))
+        mood = Mood.CONTENT
+        choose(listOf(Intent.GAME_ANOTHER), level = Level.GAME)
+        showIdle(Lines.pick(HotCold.GIVE_UP, rng.nextInt(), withArticle(round.target)), labelsFor(intents))
     }
 
     /** Word to nickname for every thing it has named. */
@@ -704,7 +845,7 @@ class Game(private val ctx: Context) {
 
     /** Ask the text model for a line + labels, check them, fall back if needed. */
     /** [menu] overrides the options that follow (an idea's keep/drop choice). */
-    private fun turn(event: Event, fresh: Boolean, menu: Pair<List<Intent>, Level>? = null) {
+    private fun turn(event: Event, fresh: Boolean, menu: Pair<List<Intent>, Level>? = null, reveal: RevealSpec? = null) {
         val grewNest = event is Event.NewKind || event is Event.KindGrew || event is Event.Favorite
         val next = menu?.first ?: afterTurnIntents(fresh).let { if (grewNest && it != DOZE_CUE) it + Intent.NEST else it }
         choose(next, level = when {
@@ -713,11 +854,18 @@ class Game(private val ctx: Context) {
             fresh -> Level.PHOTO
             else -> Level.HOME
         })
-        show(ui.copy(phase = Phase.THINKING, frozen = null, line = ""))
+        val started = System.currentTimeMillis()
+        show(ui.copy(phase = Phase.THINKING, frozen = null, line = "", mood = mood, nest = null, token = null, hud = null,
+            reveal = reveal?.text, revealAt = started, fanfare = reveal?.fanfare, fanfareKind = reveal?.kind))
         val traits = state.traits
         val m = mood
         scope.launch {
             val result = withContext(textThread) { compose(traits, m, event, next) }
+            // Let the reveal finish (and the banner be seen) even when the line comes back fast.
+            reveal?.let { rv ->
+                val until = started + Reveal.duration(rv.text) + (if (rv.fanfare != null) 900 else 0)
+                delay((until - System.currentTimeMillis()).coerceAtLeast(0))
+            }
             lastTurn = result.log
             if (event is Event.Thought) pendingIdeaText = result.line
             if (event is Event.MoreThought) pendingMore += result.line
@@ -816,6 +964,7 @@ class Game(private val ctx: Context) {
             is Event.KindGrew -> Lines.pick(Lines.KIND_GREW, roll, event.word, label = event.kinds)
             is Event.GoesWith -> Lines.pick(Lines.GOES_WITH, roll, event.word, label = event.other)
             is Event.Thought -> Ideas.fallback(event.plan, roll)
+            is Event.GameWon -> Lines.pick(HotCold.WIN, roll, event.word).replace("{n}", event.seconds.toString())
             is Event.MoreThought -> Ideas.moreFallback(event.more, roll)
             else -> event.requiredWord?.let { Lines.pick(Lines.FALLBACK[m] ?: Lines.FALLBACK.getValue(Mood.CURIOUS), roll, it, name) }
                 ?: Lines.pick(Lines.IDLE[m] ?: Lines.IDLE.getValue(Mood.CURIOUS), roll)
@@ -836,6 +985,8 @@ class Game(private val ctx: Context) {
         Level.DOZE -> "sleepy"
         Level.NEST -> "my nest"
         Level.KIND -> kindOpen?.let { Nest.NAMES[it] }
+        Level.PLAY -> "games"
+        Level.GAME -> "hot and cold"
         Level.IDEA -> "new idea"
     }
 

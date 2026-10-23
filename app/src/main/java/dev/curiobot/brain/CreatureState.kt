@@ -51,6 +51,11 @@ class CreatureState(
     val recentIdeaKeys = mutableListOf<String>()
     var ideasHad = 0
     var ideasKept = 0
+    /** Hot and cold. */
+    var gamesPlayed = 0
+    var gamesWon = 0
+    var bestGameSeconds = 0
+    val recentGameTargets = mutableListOf<String>()
 
     val traits: Traits by lazy { Genome.traitsFor(seed) }
 
@@ -98,6 +103,10 @@ class CreatureState(
         put("recentIdeaKeys", JSONArray(recentIdeaKeys))
         put("ideasHad", ideasHad)
         put("ideasKept", ideasKept)
+        put("gamesPlayed", gamesPlayed)
+        put("gamesWon", gamesWon)
+        put("bestGameSeconds", bestGameSeconds)
+        put("recentGameTargets", JSONArray(recentGameTargets))
         put("journal", JSONArray().also { a ->
             for (e in journal) a.put(JSONObject().apply {
                 put("ts", e.ts); put("word", e.word ?: JSONObject.NULL); put("mood", e.mood); put("text", e.text)
@@ -167,6 +176,10 @@ class CreatureState(
             o.optJSONArray("recentIdeaKeys")?.let { a -> for (i in 0 until a.length()) s.recentIdeaKeys += a.getString(i) }
             s.ideasHad = o.optInt("ideasHad", 0)
             s.ideasKept = o.optInt("ideasKept", 0)
+            s.gamesPlayed = o.optInt("gamesPlayed", 0)
+            s.gamesWon = o.optInt("gamesWon", 0)
+            s.bestGameSeconds = o.optInt("bestGameSeconds", 0)
+            o.optJSONArray("recentGameTargets")?.let { a -> for (i in 0 until a.length()) s.recentGameTargets += a.getString(i) }
             o.optJSONArray("journal")?.let { a ->
                 for (i in 0 until a.length()) {
                     val x = a.getJSONObject(i)

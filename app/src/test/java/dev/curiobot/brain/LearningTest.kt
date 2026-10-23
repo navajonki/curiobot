@@ -394,3 +394,56 @@ class SayMoreTest {
         assertFalse(spec.user.contains("intents:"))
     }
 }
+
+class HotColdTest {
+    private val cats = org.json.JSONObject(java.io.File("src/main/assets/vocab.json").readText()).getJSONArray("rows")
+        .let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
+        .filter { it.getString("kind") == "normal" }.associate { it.getString("label") to it.getString("cat") }
+
+    @Test fun targetsAreSafeAndRotate() {
+        val s = CreatureState(42, 0)
+        val rng = kotlin.random.Random(9)
+        val seen = mutableListOf<String>()
+        repeat(8) {
+            val r = HotCold.pick(s, { cats[it] }, 0, rng)!!
+            assertTrue(r.target, r.target in Hunts.WORDS)
+            assertTrue(r.clue.startsWith("something that "))
+            assertFalse("no repeats within a few rounds", r.target in seen)
+            seen += r.target
+        }
+        assertEquals(8, s.gamesPlayed)
+    }
+
+    @Test fun meterWarmsAsTheRankDrops() {
+        val r = HotCold.Round("sock", "clothing", "something that keeps someone warm", 0)
+        assertEquals("cold", HotCold.read(r, 400).label)
+        val levels = listOf(300, 120, 40, 12, 3, 1, 1, 1).map { HotCold.read(r, it) }
+        assertEquals("HOT!", levels.last().label)
+        assertTrue(levels.zipWithNext().all { (a, b) -> b.level >= a.level })
+        // one stray frame doesn't win; two in a row do
+        val g = HotCold.Round("sock", "clothing", "", 0)
+        assertFalse(HotCold.isFound(g, 1, 0.6))
+        assertFalse(HotCold.isFound(g, 3, 0.1))
+        assertFalse(HotCold.isFound(g, 1, 0.6))
+        assertTrue(HotCold.isFound(g, 1, 0.5))
+    }
+
+    @Test fun hintsAndScores() {
+        val r = HotCold.Round("sock", "clothing", "something", 0)
+        assertNull(HotCold.hint(r, 10_000))
+        assertEquals("starts with 's'", HotCold.hint(r, 31_000))
+        assertEquals("starts with 's', 4 letters", HotCold.hint(r, 61_000))
+        val s = CreatureState(42, 0)
+        assertEquals(23, HotCold.won(s, r, 23_400))
+        assertEquals(1, s.gamesWon); assertEquals(23, s.bestGameSeconds)
+        HotCold.won(s, r, 40_000)
+        assertEquals(23, s.bestGameSeconds)
+        assertTrue(s.journal.last().text.contains("hot and cold"))
+        val back = CreatureState.fromJson(s.toJson())
+        assertEquals(2, back.gamesWon); assertEquals(23, back.bestGameSeconds)
+    }
+
+    @Test fun playIsAlwaysOnTheHomeMenu() {
+        assertTrue(Intent.PLAY in Mind.intentsFor(CreatureState(42, 0), fresh = false))
+    }
+}
