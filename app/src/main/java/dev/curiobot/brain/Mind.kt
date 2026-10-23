@@ -51,6 +51,12 @@ enum class Intent(val id: String, val ask: String, val labels: List<String>, val
     HOT_COLD("hot_cold", "", listOf("Hot and cold"), modelLabel = false),
     GAME_START("game_start", "", listOf("Start looking"), modelLabel = false),
     GAME_ANOTHER("game_another", "", listOf("A different one"), modelLabel = false),
+    ADVENTURE("adventure", "", listOf("Tiny adventure"), modelLabel = false),
+    STORY_CHOICE("story_choice", "", listOf("{word}"), modelLabel = false),
+    STORY_END("story_end", "", listOf("The end"), modelLabel = false),
+    STORYBOOK("storybook", "", listOf("Storybook"), modelLabel = false),
+    READ_STORY("read_story", "", listOf("{word}"), modelLabel = false),
+    NEXT_PAGE("next_page", "", listOf("Next page"), modelLabel = false),
     /** On a nest kind's page. */
     THINK_KIND("think_kind", "", listOf("Think about these"), modelLabel = false),
     HUNT_KIND("hunt_kind", "", listOf("{word}"), modelLabel = false),
@@ -179,6 +185,16 @@ sealed class Event {
         override val context get() = (plan.things.flatMap { listOfNotNull(it.word, it.nickname) } +
             listOfNotNull(more.extra?.word, more.extra?.nickname, plan.kinds, plan.hook, more.content, bud)).joinToString(" ")
         override fun promptLine() = Ideas.morePromptLine(bud, more)
+    }
+    /** A beat of a tiny adventure. Code wrote what happens; the model narrates it. */
+    class StoryBeat(val run: Stories.Run) : Event() {
+        private val words = run.required()
+        private val ctx = run.context()
+        private val line = Stories.promptLine(run)
+        override val requiredWord get() = words.first()
+        override val requiredWords get() = words
+        override val context get() = ctx
+        override fun promptLine() = line
     }
     /** Won hot and cold. Written lines only: a fixed, happy moment. */
     data class GameWon(val word: String, val seconds: Int) : Event() {

@@ -56,6 +56,8 @@ class CreatureState(
     var gamesWon = 0
     var bestGameSeconds = 0
     val recentGameTargets = mutableListOf<String>()
+    /** Finished tiny adventures. */
+    val stories = mutableListOf<Story>()
 
     val traits: Traits by lazy { Genome.traitsFor(seed) }
 
@@ -107,6 +109,9 @@ class CreatureState(
         put("gamesWon", gamesWon)
         put("bestGameSeconds", bestGameSeconds)
         put("recentGameTargets", JSONArray(recentGameTargets))
+        put("stories", JSONArray().also { a ->
+            for (st in stories) a.put(JSONObject().apply { put("ts", st.ts); put("title", st.title); put("pages", JSONArray(st.pages)) })
+        })
         put("journal", JSONArray().also { a ->
             for (e in journal) a.put(JSONObject().apply {
                 put("ts", e.ts); put("word", e.word ?: JSONObject.NULL); put("mood", e.mood); put("text", e.text)
@@ -180,6 +185,13 @@ class CreatureState(
             s.gamesWon = o.optInt("gamesWon", 0)
             s.bestGameSeconds = o.optInt("bestGameSeconds", 0)
             o.optJSONArray("recentGameTargets")?.let { a -> for (i in 0 until a.length()) s.recentGameTargets += a.getString(i) }
+            o.optJSONArray("stories")?.let { a ->
+                for (i in 0 until a.length()) {
+                    val x = a.getJSONObject(i)
+                    val p = x.getJSONArray("pages")
+                    s.stories += Story(x.getLong("ts"), x.getString("title"), List(p.length()) { p.getString(it) })
+                }
+            }
             o.optJSONArray("journal")?.let { a ->
                 for (i in 0 until a.length()) {
                     val x = a.getJSONObject(i)

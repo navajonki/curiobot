@@ -17,8 +17,8 @@ android {
         applicationId = "dev.curiobot"
         minSdk = 31
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.4.0"
+        versionCode = 8
+        versionName = "0.4.1"
         ndk { abiFilters += listOf("arm64-v8a") }
         buildConfigField("String", "LOG_URL", "\"$logUrl\"")
         buildConfigField("String", "LOG_KEY", "\"$logKey\"")

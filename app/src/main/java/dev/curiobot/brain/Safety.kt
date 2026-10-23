@@ -98,7 +98,8 @@ object Safety {
     private val THIRD_PERSON = Regex(
         "\\b(it|the creature)\\s+(saw|sees|seen|likes|loves|wonders|thinks|feels|remembers|wants|learned|found|named|is happy|is curious|is sleepy|is excited)\\b|\\bhow it (likes|feels|thinks)\\b")
     private val SELF_AS = Regex("\\bi('m| am) (a|an|the) (little |tiny |small |big )?([a-z]+)")
-    private val EXAMPLE_ECHOES = listOf("windy", "breakfast team", "green feathers", "cousins", "floats up", "waves at")
+    private val EXAMPLE_ECHOES = listOf("windy", "breakfast team", "green feathers", "cousins", "floats up", "waves at",
+        "somewhere up there")
     private val MENU_PHRASES = listOf("show something new", "find something new", "ask what it thinks",
         "remember a day", "say hello back", "not quite", "nap time")
     private val SELF_AS_EXTRA = setOf("friend", "thing", "creature", "mystery", "person", "bot")
@@ -120,7 +121,7 @@ object Safety {
         out += Check("charset", CHARSET.matches(line))
         out += Check("link", !LINK.containsMatchIn(lower))
         // Ideas get a bit more room; the screen fits about 150 characters.
-        val (maxChars, maxWords) = if (long) 130 to 22 else 90 to 16
+        val (maxChars, maxWords) = if (long) 140 to 26 else 90 to 16
         out += Check("length", line.length in 3..maxChars && words.size in 1..maxWords, "${line.length} chars, ${words.size} words")
         val blocked = blockedTerms(lower, words)
         out += Check("blocklist", blocked.isEmpty(), blocked.joinToString(","))

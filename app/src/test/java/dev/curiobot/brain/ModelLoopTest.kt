@@ -42,7 +42,7 @@ class ModelLoopTest {
             Triple(Mood.CURIOUS, Event.GoesWith("fork", "Mugsby", "kitchen things"), intentsFresh),
             Triple(Mood.DELIGHTED, Event.KindGrew("rabbit", "animals", 3), intentsFresh),
             Triple(Mood.DELIGHTED, Event.Favorite("spoon", "kitchen things"), intentsFresh),
-        ) + ideaCases() + moreCases()
+        ) + ideaCases() + moreCases() + storyCases()
         for (seed in listOf(11L, 222L, 3333L)) {
             val t = Genome.traitsFor(seed)
             for ((mood, ev, intents) in cases) {
@@ -111,6 +111,26 @@ class ModelLoopTest {
             Triple(animals, "I think the dog and cat like naps!", Ideas.More(om, "the teddy bear joins in, because it likes naps too", "teddy bear", t("teddy bear", "toy"))),
         )
         return cases.map { (p, bud, m) -> Triple(Mood.DELIGHTED, Event.MoreThought(p, m, bud) as Event, menu) }
+    }
+
+    private fun storyCases(): List<Triple<Mood, Event, List<Intent>>> {
+        val out = mutableListOf<Triple<Mood, Event, List<Intent>>>()
+        val casts = listOf(
+            listOf("mug" to "kitchen", "fern" to "plant", "sock" to "clothing") to mapOf("mug" to "Mugsby"),
+            listOf("pillow" to "home", "banana" to "food", "lamp" to "home") to emptyMap(),
+            listOf("teddy bear" to "toy", "spoon" to "kitchen", "book" to "home") to emptyMap(),
+        )
+        for ((i, c) in casts.withIndex()) {
+            val s = CreatureState(7L + i, 0)
+            c.first.forEachIndexed { k, (w, cat) -> Mind.react(s, Seeing(Verdict.NORMAL, w, cat, 0.9, 1.0), 1_000L + k) }
+            val run = Stories.start(s, c.second, kotlin.random.Random(10 + i))!!
+            repeat(4) { beat ->
+                val choices = run.choices()
+                out += Triple(Mood.DELIGHTED, Event.StoryBeat(run) as Event, choices.map { Intent.STORY_CHOICE }.ifEmpty { listOf(Intent.STORY_END) })
+                if (beat < 3) run.choose(choices[(beat + i) % 2])
+            }
+        }
+        return out
     }
 
     @Test fun evaluateOutputs() {

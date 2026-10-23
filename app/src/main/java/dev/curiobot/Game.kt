@@ -8,6 +8,7 @@ import dev.curiobot.brain.Event
 import dev.curiobot.brain.MYSTERY
 import dev.curiobot.brain.Hunts
 import dev.curiobot.brain.HotCold
+import dev.curiobot.brain.Stories
 import dev.curiobot.brain.withArticle
 import dev.curiobot.brain.Ideas
 import dev.curiobot.brain.Intent
@@ -69,7 +70,7 @@ class Game(private val ctx: Context) {
     enum class Button { NEXT, OK, BACK }
 
     /** Where the options came from, which decides what Back does and the header. */
-    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, KIND, IDEA, PLAY, GAME }
+    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, KIND, IDEA, PLAY, GAME, STORY, BOOK, PAGE }
 
     /** What the screen types out while the text model thinks, plus an optional banner. */
     private data class RevealSpec(val text: String, val fanfare: String? = null, val kind: String? = null)
@@ -127,6 +128,10 @@ class Game(private val ctx: Context) {
     private var liveJob: Job? = null
     private var hotNote: String? = null
     private var hotNoteUntil = 0L
+    /** The tiny adventure being told, and where the storybook is open. */
+    private var story: Stories.Run? = null
+    private var bookStory = -1
+    private var bookPage = 0
     private var ticker: Job? = null
     private val frameLock = Any()
     private var lastFrame: Bitmap? = null
@@ -267,6 +272,15 @@ class Game(private val ctx: Context) {
             Level.PHOTO, Level.DOZE, Level.NEST -> backToIdle()
             Level.KIND -> showNest()
             Level.PLAY -> backToIdle()
+            Level.STORY -> {
+                story?.let { Telemetry.log("story_quit", JSONObject().put("title", it.title).put("beat", it.beat)) }
+                story = null
+                mood = Mind.idleMood(state)
+                choose(Mind.intentsFor(state, fresh = false))
+                showIdle(Lines.pick(Stories.QUIT, rng.nextInt()), labelsFor(intents))
+            }
+            Level.BOOK -> showPlayMenu()
+            Level.PAGE -> showBook()
             Level.GAME -> { hot = null; backToIdle() }
             Level.IDEA -> {
                 // Leaving without deciding: the idea just isn't kept. It doesn't count against that kind of idea.
@@ -378,11 +392,45 @@ class Game(private val ctx: Context) {
             }
             Intent.TRY_AGAIN -> scope.launch { prepareTextModel() }
             Intent.REFLECT -> startIdea(Ideas.plan(state, nicknameMap(), rng), "home")
-            Intent.PLAY -> {
-                mood = Mood.CURIOUS
-                choose(listOf(Intent.HOT_COLD), level = Level.PLAY)
-                showIdle(Lines.pick(Lines.PLAY, rng.nextInt()), labelsFor(intents))
+            Intent.PLAY -> showPlayMenu()
+            Intent.ADVENTURE -> {
+                val run = Stories.start(state, nicknameMap(), rng)
+                if (run == null) {
+                    choose(Mind.intentsFor(state, fresh = false))
+                    showIdle(Lines.pick(Stories.START_EMPTY, 0), labelsFor(intents))
+                } else {
+                    story = run
+                    mood = Mood.DELIGHTED
+                    Telemetry.log("story_start", JSONObject().put("title", run.title)
+                        .put("cast", JSONArray(run.cast.map { it.name })))
+                    storyBeat(run)
+                }
             }
+            Intent.STORY_CHOICE -> {
+                val run = story ?: return backToIdle()
+                val choice = arg ?: return
+                run.choose(choice)
+                Telemetry.log("story_choice", JSONObject().put("title", run.title).put("beat", run.beat).put("choice", choice))
+                storyBeat(run)
+            }
+            Intent.STORY_END -> {
+                if (level == Level.PAGE) return showBook()
+                val run = story ?: return backToIdle()
+                story = null
+                val saved = Stories.save(state, run, now)
+                Telemetry.log("story_saved", JSONObject().put("title", saved.title).put("pages", JSONArray(saved.pages)))
+                mood = Mood.DELIGHTED
+                choose(listOf(Intent.ADVENTURE, Intent.STORYBOOK), level = Level.PLAY)
+                showIdle(Lines.pick(Stories.SAVED, rng.nextInt()), labelsFor(intents))
+                saveState()
+            }
+            Intent.STORYBOOK -> showBook()
+            Intent.READ_STORY -> {
+                bookStory = state.stories.indexOfLast { it.title == arg }.takeIf { it >= 0 } ?: return showBook()
+                bookPage = 0
+                showPage()
+            }
+            Intent.NEXT_PAGE -> { bookPage++; showPage() }
             Intent.HOT_COLD, Intent.GAME_ANOTHER -> {
                 val e = eye
                 val round = if (e == null) null else HotCold.pick(state, { e.categoryOf(it) }, now, rng)
@@ -634,6 +682,41 @@ class Game(private val ctx: Context) {
         }
     }
 
+    // ---------- games menu, tiny adventures, storybook ----------
+
+    private fun showPlayMenu() {
+        mood = Mood.CURIOUS
+        val opts = listOfNotNull(Intent.HOT_COLD, Intent.ADVENTURE.takeIf { Ideas.canReflect(state) },
+            Intent.STORYBOOK.takeIf { state.stories.isNotEmpty() })
+        choose(opts, level = Level.PLAY)
+        showIdle(Lines.pick(Lines.PLAY, rng.nextInt()), labelsFor(intents))
+    }
+
+    /** Narrate the current beat, then offer its two choices (or "The end"). */
+    private fun storyBeat(run: Stories.Run) {
+        val choices = run.choices()
+        val menu = if (choices.isEmpty()) listOf(Intent.STORY_END) else choices.map { Intent.STORY_CHOICE }
+        turn(Event.StoryBeat(run), fresh = false, menu = menu to Level.STORY, menuArgs = choices.ifEmpty { listOf(null) })
+    }
+
+    private fun showBook() {
+        mood = Mood.CONTENT
+        val newestFirst = state.stories.asReversed()
+        choose(newestFirst.map { Intent.READ_STORY }, newestFirst.map { it.title.lowercase() }, Level.BOOK)
+        val n = state.stories.size
+        showIdle(if (n == 0) "No stories yet." else "My storybook. $n ${if (n == 1) "story" else "stories"} so far.",
+            labelsFor(intents))
+    }
+
+    private fun showPage() {
+        val st = state.stories.getOrNull(bookStory) ?: return showBook()
+        val page = st.pages.getOrNull(bookPage) ?: return showBook()
+        val last = bookPage >= st.pages.size - 1
+        choose(listOf(if (last) Intent.STORY_END else Intent.NEXT_PAGE), level = Level.PAGE)
+        mood = Mood.CONTENT
+        showIdle(page, labelsFor(intents))
+    }
+
     // ---------- hot and cold ----------
 
     /** Score camera frames a few times a second against the secret target and update the meter. */
@@ -845,10 +928,11 @@ class Game(private val ctx: Context) {
 
     /** Ask the text model for a line + labels, check them, fall back if needed. */
     /** [menu] overrides the options that follow (an idea's keep/drop choice). */
-    private fun turn(event: Event, fresh: Boolean, menu: Pair<List<Intent>, Level>? = null, reveal: RevealSpec? = null) {
+    private fun turn(event: Event, fresh: Boolean, menu: Pair<List<Intent>, Level>? = null, reveal: RevealSpec? = null,
+                     menuArgs: List<String?> = emptyList()) {
         val grewNest = event is Event.NewKind || event is Event.KindGrew || event is Event.Favorite
         val next = menu?.first ?: afterTurnIntents(fresh).let { if (grewNest && it != DOZE_CUE) it + Intent.NEST else it }
-        choose(next, level = when {
+        choose(next, menuArgs, level = when {
             menu != null -> menu.second
             next == DOZE_CUE -> Level.DOZE
             fresh -> Level.PHOTO
@@ -860,7 +944,7 @@ class Game(private val ctx: Context) {
         val traits = state.traits
         val m = mood
         scope.launch {
-            val result = withContext(textThread) { compose(traits, m, event, next) }
+            val result = withContext(textThread) { compose(traits, m, event, next, menuArgs) }
             // Let the reveal finish (and the banner be seen) even when the line comes back fast.
             reveal?.let { rv ->
                 val until = started + Reveal.duration(rv.text) + (if (rv.fanfare != null) 900 else 0)
@@ -869,6 +953,7 @@ class Game(private val ctx: Context) {
             lastTurn = result.log
             if (event is Event.Thought) pendingIdeaText = result.line
             if (event is Event.MoreThought) pendingMore += result.line
+            if (event is Event.StoryBeat) event.run.pages += result.line
             Telemetry.log("turn", result.log)
             showIdle(result.line, result.labels)
             saveState()
@@ -881,7 +966,8 @@ class Game(private val ctx: Context) {
 
     data class Composed(val line: String, val labels: List<String>, val log: JSONObject)
 
-    private fun compose(traits: dev.curiobot.brain.Traits, m: Mood, event: Event, next: List<Intent>): Composed {
+    private fun compose(traits: dev.curiobot.brain.Traits, m: Mood, event: Event, next: List<Intent>,
+                        labelArgs: List<String?> = emptyList()): Composed {
         val t0 = System.currentTimeMillis()
         val spec = Prompt.build(traits, m, event, next)
         val modelIntents = next.filter { it.modelLabel }
@@ -917,11 +1003,11 @@ class Game(private val ctx: Context) {
         // Labels: the model's if they pass, else the written one for that intent.
         val labelLog = JSONArray()
         var mi = 0
-        val labels = next.map { intent ->
-            val written = intent.fallbackLabel(state.focusWord, rng.nextInt(10))
+        val labels = next.mapIndexed { idx, intent ->
+            val written = intent.fallbackLabel(labelArgs.getOrNull(idx) ?: state.focusWord, rng.nextInt(10))
             if (!intent.modelLabel) {
                 labelLog.put(JSONObject().put("intent", intent.id).put("label", written).put("source", "fixed"))
-                return@map written
+                return@mapIndexed written
             }
             val cand = modelLabels.getOrNull(mi++)
             val fails = cand?.let { Safety.checkLabel(it).failures() } ?: listOf("missing")
@@ -965,6 +1051,7 @@ class Game(private val ctx: Context) {
             is Event.GoesWith -> Lines.pick(Lines.GOES_WITH, roll, event.word, label = event.other)
             is Event.Thought -> Ideas.fallback(event.plan, roll)
             is Event.GameWon -> Lines.pick(HotCold.WIN, roll, event.word).replace("{n}", event.seconds.toString())
+            is Event.StoryBeat -> Stories.fallback(event.run, roll)
             is Event.MoreThought -> Ideas.moreFallback(event.more, roll)
             else -> event.requiredWord?.let { Lines.pick(Lines.FALLBACK[m] ?: Lines.FALLBACK.getValue(Mood.CURIOUS), roll, it, name) }
                 ?: Lines.pick(Lines.IDLE[m] ?: Lines.IDLE.getValue(Mood.CURIOUS), roll)
@@ -986,6 +1073,9 @@ class Game(private val ctx: Context) {
         Level.NEST -> "my nest"
         Level.KIND -> kindOpen?.let { Nest.NAMES[it] }
         Level.PLAY -> "games"
+        Level.STORY -> "tiny adventure"
+        Level.BOOK -> "storybook"
+        Level.PAGE -> state.stories.getOrNull(bookStory)?.title?.lowercase()
         Level.GAME -> "hot and cold"
         Level.IDEA -> "new idea"
     }

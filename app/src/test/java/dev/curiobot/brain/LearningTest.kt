@@ -447,3 +447,49 @@ class HotColdTest {
         assertTrue(Intent.PLAY in Mind.intentsFor(CreatureState(42, 0), fresh = false))
     }
 }
+
+class StoriesTest {
+    private fun creature(vararg seen: Pair<String, String>): CreatureState {
+        val s = CreatureState(42, 0)
+        seen.forEachIndexed { i, (w, c) -> Mind.react(s, Seeing(Verdict.NORMAL, w, c, 0.9, 1.0), 1_000L + i) }
+        return s
+    }
+
+    @Test fun aStoryRunsFourBeatsWithChoices() {
+        assertNull(Stories.start(creature("cup" to "kitchen"), emptyMap(), kotlin.random.Random(1)))
+        val s = creature("mug" to "kitchen", "fern" to "plant", "sock" to "clothing", "lamp" to "home")
+        val run = Stories.start(s, mapOf("mug" to "Mugsby"), kotlin.random.Random(4))!!
+        val lines = mutableListOf<String>()
+        repeat(4) { beat ->
+            assertEquals(beat, run.beat)
+            val e = Event.StoryBeat(run)
+            assertTrue(e.promptLine().startsWith("event: story time"))
+            assertTrue(e.requiredWords.all { e.context.lowercase().contains(it.lowercase()) || it == run.hero.name })
+            val f = Stories.fallback(run, beat)
+            assertTrue(f, Safety.checkLine(f, e.requiredWord, false, e.context, null, e.requiredWords, long = true).allOk())
+            lines += f
+            val choices = run.choices()
+            if (beat < 3) {
+                assertEquals(2, choices.size)
+                assertTrue(choices.all { it.length <= 24 })
+                run.choose(choices[beat % 2])
+            } else assertTrue(choices.isEmpty())
+            run.pages += f
+        }
+        assertTrue(Event.StoryBeat(run).promptLine().endsWith("the end"))
+        val st = Stories.save(s, run, 9_000)
+        assertEquals(4, st.pages.size)
+        assertTrue(st.title.isNotBlank())
+        assertEquals(st, CreatureState.fromJson(s.toJson()).stories.last())
+        assertTrue(s.journal.last().text.contains("story"))
+    }
+
+    @Test fun storyPromptsUseTheStoryExample() {
+        val s = creature("cup" to "kitchen", "fern" to "plant")
+        val run = Stories.start(s, emptyMap(), kotlin.random.Random(2))!!
+        val spec = Prompt.build(s.traits, Mood.DELIGHTED, Event.StoryBeat(run), listOf(Intent.STORY_CHOICE, Intent.STORY_CHOICE))
+        assertEquals(Prompt.STORY_EXAMPLE, spec.examples.last())
+        assertTrue(spec.longLine)
+        assertEquals(3, spec.requiredWords.size) // both names and the beat's key word
+    }
+}
