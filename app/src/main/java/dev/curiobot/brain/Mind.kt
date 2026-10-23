@@ -63,6 +63,13 @@ enum class Intent(val id: String, val ask: String, val labels: List<String>, val
     QUEST_ANOTHER("quest_another", "", listOf("A different quest"), modelLabel = false),
     QUEST_DROP("quest_drop", "", listOf("Give up the quest"), modelLabel = false),
     HATS("hats", "", listOf("Try on hats"), modelLabel = false),
+    /** Dreams and the memory game (see [Dreams], [MemoryGame]). */
+    DREAM_NEXT("dream_next", "", listOf("Keep watching"), modelLabel = false),
+    MEMORY("memory", "", listOf("Memory game"), modelLabel = false),
+    MEM_AGAIN("mem_again", "", listOf("Play again"), modelLabel = false),
+    MEM_SHOW("mem_show", "", listOf("Show me one"), modelLabel = false),
+    MEM_RIGHT("mem_right", "", listOf("You're right!"), modelLabel = false),
+    MEM_WRONG("mem_wrong", "", listOf("Nope!"), modelLabel = false),
     WEAR("wear", "", listOf("{word}"), modelLabel = false),
     /** On a nest kind's page. */
     THINK_KIND("think_kind", "", listOf("Think about these"), modelLabel = false),
@@ -214,6 +221,22 @@ sealed class Event {
         override val requiredWord get() = word
         override val written get() = true
         override fun promptLine() = "event: finished my quest, $quest, with the $word, and got a new hat"
+    }
+    /** A page of a dream. Code wrote what happens; the model narrates it sleepily. */
+    class DreamBeat(val run: Dreams.Run) : Event() {
+        private val words = run.required()
+        private val ctx = run.context()
+        private val line = Dreams.promptLine(run)
+        override val requiredWord get() = words.first()
+        override val requiredWords get() = words
+        override val context get() = ctx
+        override fun promptLine() = line
+    }
+    /** The memory game's guess. Written lines only. */
+    data class MemoryGuess(val line: String) : Event() {
+        override val requiredWord: String? get() = null
+        override val written get() = true
+        override fun promptLine() = "event: memory game guess"
     }
     /** Won hot and cold. Written lines only: a fixed, happy moment. */
     data class GameWon(val word: String, val seconds: Int) : Event() {

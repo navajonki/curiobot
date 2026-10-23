@@ -35,6 +35,7 @@ object Prompt {
             "For a new idea, say that idea as a playful guess that starts with Maybe or I think. " +
             "When saying more about an idea, add the new part in a fun way. " +
             "For story time, tell that part of the story in a lively way. " +
+            "For a dream, tell that part of the dream softly, like talking in its sleep. " +
             "Never describe or praise the person. Never give advice or tell the person to do anything. " +
             (if (n > 0) "Then write $n short button labels (1 to 4 words each) that match the given intents, in order. " else "") +
             "Use exactly this format:\nSAY: <line>" + (if (n > 0) "\n$slots" else "")
@@ -68,6 +69,11 @@ object Prompt {
             "event: story time, a new adventure: the sock and the kite set off for the windy hill to find a lost button\nmention: sock, kite" to
             "SAY: Once upon a time, the sock and the kite set off for the windy hill. Somewhere up there, a lost button waited!"
 
+    val DREAM_EXAMPLE =
+        "name: Zub\npersonality: bold\nstyle: blunt and funny\nmood: sleepy\n" +
+            "event: in my dream, the sock and the kite go ice skating on a frozen puddle\nmention: sock, kite, skating" to
+            "SAY: Zzz... the sock and the kite go skating on a frozen puddle... wheee..."
+
     fun build(t: Traits, mood: Mood, event: Event, intents: List<Intent>): Spec {
         val modelIntents = intents.filter { it.modelLabel }
         val user = buildString {
@@ -83,11 +89,12 @@ object Prompt {
             is Event.Thought -> listOf(EXAMPLES[0], IDEA_EXAMPLE)
             is Event.MoreThought -> listOf(IDEA_EXAMPLE, MORE_EXAMPLE)
             is Event.StoryBeat -> listOf(EXAMPLES[0], STORY_EXAMPLE)
+            is Event.DreamBeat -> listOf(EXAMPLES[0], DREAM_EXAMPLE)
             else -> EXAMPLES
         }
         return Spec(system(modelIntents.size), examples, user, event.requiredWord, event.aboutPerson, intents,
             event.context, t.name, event.requiredWords,
-            longLine = event is Event.Thought || event is Event.MoreThought || event is Event.StoryBeat)
+            longLine = event is Event.Thought || event is Event.MoreThought || event is Event.StoryBeat || event is Event.DreamBeat)
     }
 
     private val SAY = Regex("^\\s*SAY\\s*:\\s*(.+?)\\s*$", RegexOption.IGNORE_CASE)
@@ -116,7 +123,9 @@ object Prompt {
      */
     fun tidy(line: String): String? {
         val plain = line.replace(Regex("[\\p{So}\\p{Cs}\\uFE0F\\u200D]"), "")
-            .replace('\u2019', '\'').replace('\u2018', '\'').replace("\u2026", "...").trim()
+            .replace('\u2019', '\'').replace('\u2018', '\'').replace("\u2026", "...")
+            // stage directions like "(softly)" or "*yawns*"
+            .replace(Regex("\\s*\\([^)]*\\)"), "").replace(Regex("\\s*(?<!\\*)\\*[a-z ]+\\*(?!\\*)"), "").trim()
         var parts = plain.replace(Regex("\\s*[:\u2014\u2013]\\s*"), ", ").split(SENTENCE_END).map { it.trim() }.filter { it.isNotEmpty() }
         parts = parts.filterNot { MENU_ECHO.containsMatchIn(it.lowercase()) }
         while (parts.size > 1 && parts.last().endsWith("?")) parts = parts.dropLast(1)

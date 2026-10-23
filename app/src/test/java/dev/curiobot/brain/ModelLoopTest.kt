@@ -48,7 +48,7 @@ class ModelLoopTest {
             Triple(Mood.DELIGHTED, Event.QuestStep("teapot", "something from the kitchen", "a fancy tea party", 2, 3), intentsFresh),
             Triple(Mood.DELIGHTED, Event.QuestStep("backpack", "a backpack", "the explorer kit", 1, 3), intentsFresh),
             Triple(Mood.DELIGHTED, Event.QuestStep("crayon", "something to draw with", "art day", 1, 3), intentsFresh),
-        ) + ideaCases() + moreCases() + storyCases()
+        ) + ideaCases() + moreCases() + storyCases() + dreamCases()
         for (seed in listOf(11L, 222L, 3333L)) {
             val t = Genome.traitsFor(seed)
             for ((mood, ev, intents) in cases) {
@@ -117,6 +117,27 @@ class ModelLoopTest {
             Triple(animals, "I think the dog and cat like naps!", Ideas.More(om, "the teddy bear joins in, because it likes naps too", "teddy bear", t("teddy bear", "toy"))),
         )
         return cases.map { (p, bud, m) -> Triple(Mood.DELIGHTED, Event.MoreThought(p, m, bud) as Event, menu) }
+    }
+
+    private fun dreamCases(): List<Triple<Mood, Event, List<Intent>>> {
+        val out = mutableListOf<Triple<Mood, Event, List<Intent>>>()
+        val casts = listOf(
+            listOf("mug" to "kitchen", "fern" to "plant", "sock" to "clothing") to mapOf("mug" to "Mugsby"),
+            listOf("pillow" to "home", "banana" to "food", "lamp" to "home") to emptyMap(),
+            listOf("teddy bear" to "toy", "spoon" to "kitchen", "book" to "home") to emptyMap(),
+            listOf("apple" to "food", "chair" to "furniture", "pencil" to "home") to emptyMap(),
+        )
+        for ((i, c) in casts.withIndex()) {
+            val s = CreatureState(17L + i, 0)
+            c.first.forEachIndexed { k, (w, cat) -> Mind.react(s, Seeing(Verdict.NORMAL, w, cat, 0.9, 1.0), 1_000L + k) }
+            val run = Dreams.start(s, c.second, 5_000, 86_400_000, kotlin.random.Random(20 + i))!!
+            repeat(3) {
+                out += Triple(Mood.SLEEPY, Event.DreamBeat(run) as Event,
+                    if (run.last) listOf(Intent.LET_SLEEP, Intent.WAKE) else listOf(Intent.DREAM_NEXT, Intent.LET_SLEEP))
+                run.next()
+            }
+        }
+        return out
     }
 
     private fun storyCases(): List<Triple<Mood, Event, List<Intent>>> {

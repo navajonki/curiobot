@@ -7,6 +7,8 @@ import dev.curiobot.brain.CreatureState
 import dev.curiobot.brain.Event
 import dev.curiobot.brain.MYSTERY
 import dev.curiobot.brain.Hunts
+import dev.curiobot.brain.Dreams
+import dev.curiobot.brain.MemoryGame
 import dev.curiobot.brain.Hats
 import dev.curiobot.brain.Quests
 import dev.curiobot.brain.HotCold
@@ -74,7 +76,7 @@ class Game(private val ctx: Context) {
     enum class Button { NEXT, OK, BACK }
 
     /** Where the options came from, which decides what Back does and the header. */
-    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, KIND, IDEA, PLAY, GAME, STORY, BOOK, PAGE, QUEST, PARTY, HATS }
+    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, KIND, IDEA, PLAY, GAME, STORY, BOOK, PAGE, QUEST, PARTY, HATS, DREAM, MEMORY }
 
     /** What the screen types out while the text model thinks, plus an optional banner. */
     private data class RevealSpec(val text: String, val fanfare: String? = null, val kind: String? = null)
@@ -138,6 +140,10 @@ class Game(private val ctx: Context) {
     private var bookPage = 0
     /** A quest just picked (not yet looked at), and where the quest page was opened from. */
     private var questFresh = false
+    /** The dream being watched, and the memory game in play (with a photo on the way). */
+    private var dream: Dreams.Run? = null
+    private var mem: MemoryGame.Run? = null
+    private var memAwaiting = false
     /** The celebration to show after the turn that finished a quest. */
     private var partyScene: Scene? = null
     private var questFrom = Level.PLAY
@@ -265,7 +271,9 @@ class Game(private val ctx: Context) {
                 Button.BACK -> goBack()
             }
             Phase.CAMERA -> when (b) {
-                Button.BACK -> if (hot != null) giveUp() else closeCamera(log = "cancelled").also { backToIdle() }
+                Button.BACK -> if (hot != null) giveUp() else closeCamera(log = "cancelled").also {
+                    if (mem != null) { memAwaiting = false; memoryMenu() } else backToIdle()
+                }
                 Button.OK -> if (hot != null) checkHot() else snap()
                 Button.NEXT -> {}
             }
@@ -292,6 +300,11 @@ class Game(private val ctx: Context) {
             Level.PAGE -> showBook()
             Level.QUEST -> if (questFrom == Level.HOME) backToIdle() else showPlayMenu()
             Level.PARTY -> backToIdle()
+            Level.DREAM -> { dream = null; backToIdle() }
+            Level.MEMORY -> {
+                mem?.let { Telemetry.log("memory_quit", JSONObject().put("round", it.round).put("score", it.score)) }
+                mem = null; showPlayMenu()
+            }
             Level.GAME -> { hot = null; backToIdle() }
             Level.IDEA -> {
                 // Leaving without deciding: the idea just isn't kept. It doesn't count against that kind of idea.
@@ -385,16 +398,66 @@ class Game(private val ctx: Context) {
                 showIdle(Lines.pick(Lines.NAP, rng.nextInt()), labelsFor(intents))
                 saveState()
             }
-            Intent.LET_SLEEP -> showIdle(Lines.pick(Lines.LET_SLEEP, rng.nextInt()), labelsFor(intents))
+            Intent.LET_SLEEP -> {
+                dream = null
+                choose(Mind.intentsFor(state, fresh = false))
+                showIdle(Lines.pick(Lines.LET_SLEEP, rng.nextInt()), labelsFor(intents))
+            }
             Intent.PEEK -> {
                 state.dreamShown = true
+                val run = Dreams.start(state, nicknameMap(), now, pace.dayMs, rng)
+                if (run != null) {
+                    dream = run
+                    mood = Mood.SLEEPY
+                    Telemetry.log("dream_start", JSONObject().put("title", run.title))
+                    return dreamPage(run)
+                }
                 val nick = things.things.filter { it.nickname != null }.maxByOrNull { it.lastSeen }?.nickname
                 val word = nick ?: state.seen.keys.lastOrNull { it != "person" }
                 choose(Mind.intentsFor(state, fresh = false))
                 showIdle(if (word == null) Lines.pick(Lines.DREAM_EMPTY, 0) else Lines.pick(Lines.DREAM, rng.nextInt(), word),
                     labelsFor(intents))
             }
+            Intent.DREAM_NEXT -> {
+                val run = dream ?: return backToIdle()
+                run.next()
+                if (run.done) backToIdle() else dreamPage(run)
+            }
+            Intent.MEMORY, Intent.MEM_AGAIN -> {
+                mem = MemoryGame.Run()
+                mood = Mood.DELIGHTED
+                Telemetry.log("memory_start", JSONObject().put("things_known", things.size))
+                choose(listOf(Intent.MEM_SHOW), level = Level.MEMORY)
+                showIdle(Lines.pick(MemoryGame.INTRO, 0), labelsFor(intents))
+            }
+            Intent.MEM_SHOW -> {
+                if (mem == null) return backToIdle()
+                memAwaiting = true
+                openCamera()
+            }
+            Intent.MEM_RIGHT, Intent.MEM_WRONG -> {
+                val run = mem ?: return backToIdle()
+                val right = intent == Intent.MEM_RIGHT
+                val over = MemoryGame.judge(state, run, right, now)
+                state.satisfaction = (state.satisfaction + 0.05).coerceAtMost(1.0)
+                state.energy = (state.energy - Mind.ACTION_ENERGY / 3).coerceAtLeast(0.0)
+                Telemetry.log("memory_judged", JSONObject().put("right", right).put("guessed_seen", run.guessedSeen)
+                    .put("score", run.score).put("round", run.round).put("over", over))
+                mood = if (right) Mood.DELIGHTED else Mood.PUZZLED
+                val reaction = Lines.pick(if (right) MemoryGame.RIGHT else MemoryGame.WRONG, rng.nextInt())
+                if (over) {
+                    mood = if (run.score >= 3) Mood.DELIGHTED else Mood.CONTENT
+                    choose(listOf(Intent.MEM_AGAIN), level = Level.MEMORY)
+                    showIdle("$reaction ${MemoryGame.end(run.score)}", labelsFor(intents))
+                    mem = null
+                    saveState()
+                } else {
+                    choose(listOf(Intent.MEM_SHOW), level = Level.MEMORY)
+                    showIdle("$reaction That's ${run.score} of ${run.round - 1}.", labelsFor(intents))
+                }
+            }
             Intent.WAKE -> {
+                dream = null
                 val progress = Mind.wakeEarly(state, now, pace)
                 mood = Mood.SLEEPY
                 choose(Mind.intentsFor(state, fresh = false))
@@ -593,7 +656,11 @@ class Game(private val ctx: Context) {
                 runCatching { e.see(photo) }.onFailure { Telemetry.error("perception_failed", it) }.getOrNull()
             }
             photo.recycle()
-            if (p == null) backToIdle() else handlePerception(p)
+            when {
+                p == null -> if (mem != null) memoryMenu() else backToIdle()
+                mem != null && memAwaiting -> handleMemory(p)
+                else -> handlePerception(p)
+            }
         }
     }
 
@@ -770,6 +837,7 @@ class Game(private val ctx: Context) {
         mood = Mood.CURIOUS
         val quest = Quests.active(state)
         val opts = listOfNotNull(Intent.HOT_COLD, Intent.ADVENTURE.takeIf { Ideas.canReflect(state) },
+            Intent.MEMORY.takeIf { things.size >= 3 },
             if (quest != null) Intent.QUEST_OPEN else Intent.QUEST,
             Intent.STORYBOOK.takeIf { state.stories.isNotEmpty() }, Intent.HATS.takeIf { state.hats.isNotEmpty() })
         choose(opts, opts.map { if (it == Intent.QUEST_OPEN) "${quest!!.done}/${quest.steps.size}" else null }, Level.PLAY)
@@ -799,6 +867,50 @@ class Game(private val ctx: Context) {
         choose(listOf(if (last) Intent.STORY_END else Intent.NEXT_PAGE), level = Level.PAGE)
         mood = Mood.CONTENT
         showIdle(page, labelsFor(intents))
+    }
+
+    // ---------- dreams and the memory game ----------
+
+    /** Narrate the dream's current page; the last page ends with the usual sleeping choices. */
+    private fun dreamPage(run: Dreams.Run) {
+        val menu = if (run.last) listOf(Intent.LET_SLEEP, Intent.WAKE) else listOf(Intent.DREAM_NEXT, Intent.LET_SLEEP)
+        turn(Event.DreamBeat(run), fresh = false, menu = menu to Level.DREAM)
+    }
+
+    private fun memoryMenu() {
+        val run = mem ?: return backToIdle()
+        choose(listOf(Intent.MEM_SHOW), level = Level.MEMORY)
+        showIdle("Round ${run.round} of ${MemoryGame.ROUNDS}. Show me something!", labelsFor(intents))
+    }
+
+    /** The memory game's guess: has it seen this exact thing before? Nothing here changes its memory. */
+    private fun handleMemory(p: Eye.Perception) {
+        memAwaiting = false
+        val run = mem ?: return backToIdle()
+        Telemetry.log("perception", p.toLog().put("memory_game", true))
+        if (p.verdict == Verdict.TRIPWIRE || p.verdict == Verdict.PERSON || p.verdict == Verdict.LOWINFO) {
+            mood = if (p.verdict == Verdict.TRIPWIRE) Mood.QUIET else Mood.PUZZLED
+            choose(listOf(Intent.MEM_SHOW), level = Level.MEMORY)
+            showIdle(Lines.pick(if (p.verdict == Verdict.TRIPWIRE) Lines.LOOK_AWAY else MemoryGame.NOT_A_THING, rng.nextInt()),
+                labelsFor(intents))
+            return
+        }
+        val rec = things.recognize(p.embedding)
+        val inGame = MemoryGame.shownBefore(run, p.embedding)
+        run.guessedSeen = rec != null || inGame
+        run.shown += p.embedding
+        val line = when {
+            rec != null -> Lines.pick(MemoryGame.SEEN, rng.nextInt(), label = rec.thing.nickname ?: "the ${rec.thing.word}")
+            inGame -> Lines.pick(MemoryGame.SEEN_IN_GAME, rng.nextInt())
+            else -> Lines.pick(MemoryGame.NEW, rng.nextInt())
+        }
+        Telemetry.log("memory_guess", JSONObject().put("round", run.round).put("seen", run.guessedSeen)
+            .put("in_game", inGame).put("thing", rec?.thing?.id ?: JSONObject.NULL)
+            .put("similarity", rec?.let { r3(it.similarity) } ?: r3(things.best(p.embedding)?.similarity ?: 0.0))
+            .put("eye_label", p.label))
+        mood = if (run.guessedSeen) Mood.DELIGHTED else Mood.CURIOUS
+        turn(Event.MemoryGuess(line), fresh = false, menu = listOf(Intent.MEM_RIGHT, Intent.MEM_WRONG) to Level.MEMORY,
+            reveal = RevealSpec("Hmm... have I seen this before..."))
     }
 
     // ---------- quests and hats ----------
@@ -1068,6 +1180,7 @@ class Game(private val ctx: Context) {
         })
         val started = System.currentTimeMillis()
         show(ui.copy(phase = Phase.THINKING, frozen = null, line = "", mood = mood, nest = null, token = null, hud = null,
+            dream = level == Level.DREAM, quest = null, scene = null, title = titleFor(),
             reveal = reveal?.text, revealAt = started, fanfare = reveal?.fanfare, fanfareKind = reveal?.kind))
         val traits = state.traits
         val m = mood
@@ -1082,6 +1195,14 @@ class Game(private val ctx: Context) {
             if (event is Event.Thought) pendingIdeaText = result.line
             if (event is Event.MoreThought) pendingMore += result.line
             if (event is Event.StoryBeat) event.run.pages += result.line
+            if (event is Event.DreamBeat) {
+                event.run.pages += result.line
+                if (event.run.last) {
+                    val saved = Dreams.save(state, event.run, System.currentTimeMillis())
+                    Telemetry.log("dream_saved", JSONObject().put("title", saved.title).put("pages", JSONArray(saved.pages)))
+                    dream = null
+                }
+            }
             Telemetry.log("turn", result.log)
             showIdle(result.line, result.labels)
             scene?.let { ui = ui.copy(scene = it) }
@@ -1184,6 +1305,8 @@ class Game(private val ctx: Context) {
             is Event.Thought -> Ideas.fallback(event.plan, roll)
             is Event.GameWon -> Lines.pick(HotCold.WIN, roll, event.word).replace("{n}", event.seconds.toString())
             is Event.StoryBeat -> Stories.fallback(event.run, roll)
+            is Event.DreamBeat -> Dreams.fallback(event.run, roll)
+            is Event.MemoryGuess -> event.line
             is Event.MoreThought -> Ideas.moreFallback(event.more, roll)
             else -> event.requiredWord?.let { Lines.pick(Lines.FALLBACK[m] ?: Lines.FALLBACK.getValue(Mood.CURIOUS), roll, it, name) }
                 ?: Lines.pick(Lines.IDLE[m] ?: Lines.IDLE.getValue(Mood.CURIOUS), roll)
@@ -1212,6 +1335,8 @@ class Game(private val ctx: Context) {
         Level.QUEST -> "quest"
         Level.PARTY -> "quest done"
         Level.HATS -> "hats"
+        Level.DREAM -> "dream"
+        Level.MEMORY -> mem?.let { "memory game, round ${minOf(it.round, MemoryGame.ROUNDS)} of ${MemoryGame.ROUNDS}" } ?: "memory game"
         Level.IDEA -> "new idea"
     }
 
@@ -1258,7 +1383,7 @@ class Game(private val ctx: Context) {
             phase = Phase.IDLE, name = state.traits.name, satisfaction = state.satisfaction, energy = state.energy,
             mood = if (state.asleep) Mood.SLEEPY else mood, line = line, options = labels, cursor = 0,
             spriteSeed = state.seed, asleep = state.asleep, wish = wishActive(), title = titleFor(),
-            hat = state.wearing, questBadge = questCount(),
+            hat = state.wearing, questBadge = questCount(), dream = level == Level.DREAM,
         ))
         Telemetry.log("screen", JSONObject().put("line", line).put("options", JSONArray(labels))
             .put("menu", level.name.lowercase())

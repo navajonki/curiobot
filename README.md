@@ -49,6 +49,13 @@ buttons ─► Game ─► Mind (seed traits, needs, reactions, journal) ◄─�
   status bar tracks it. Finishing one puts on a little party scene with what you
   found, and earns a hat (`brain/Quests.kt`). A full nest spot earns one too (a
   chef hat for six kitchen things). "Try on hats" previews each as you scroll.
+- **Dreams.** "Peek at its dream" during a nap plays a three-page dream about
+  the things it saw that day (`brain/Dreams.kt`), in a dotted thought bubble.
+  Code writes what happens; the model narrates it sleepily. Dreams go in the
+  storybook.
+- **Memory game.** Show it five things; it says whether it has seen each exact
+  one before, by image memory, so a look-alike can trick it. You say if it's
+  right. The game never changes what it remembers.
 - **Grounded lines.** Code picks what to talk about (the word, the link, the
   thought); the model only voices it. Lines that name things it didn't see, talk
   about itself as "it", or trail off in a question are rejected. Anything about a
@@ -64,7 +71,7 @@ the camera). Menus other than home show a small header with where you are.
 
 | Path | What |
 |---|---|
-| `app/src/main/java/dev/curiobot/brain/` | Portable creature logic (no Android imports): `Genome`, `CreatureState`, `Mind`, `Nest`, `Hunts`, `Quests`, `Ideas`, `Stories`, `HotCold`, `Things`, `Prompt`, `Safety`, `Lines` |
+| `app/src/main/java/dev/curiobot/brain/` | Portable creature logic (no Android imports): `Genome`, `CreatureState`, `Mind`, `Nest`, `Hunts`, `Quests`, `Ideas`, `Stories`, `Dreams`, `HotCold`, `Things`, `Prompt`, `Safety`, `Lines` |
 | `.../vision/Eye.kt` | Image encoder + vocabulary matching and tripwires |
 | `.../text/` | `TextModel` (LiteRT-LM, GPU then CPU) and `ModelStore` (download) |
 | `.../ui/` | 1-bit renderer, procedural sprites, dithered viewfinder |

@@ -53,6 +53,8 @@ data class UiState(
     val quest: QuestView? = null,
     /** A celebration scene that replaces the whole home layout. */
     val scene: Scene? = null,
+    /** Watching a dream: the speech bubble becomes a dotted thought bubble. */
+    val dream: Boolean = false,
 )
 
 /** A quest's checklist: each step's label and what filled it, if anything. */
@@ -146,9 +148,18 @@ class Lcd {
         }
         // speech bubble
         val bx = 124; val by = 24; val bw = W - bx - 6; val bh = 96
-        outline(bx, by, bw, bh)
-        // little tail toward the creature
-        bar(bx - 6, by + 40, 6, 2, dark); bar(bx - 3, by + 37, 3, 3, dark)
+        if (ui.dream) {
+            // a dotted thought bubble, with puffs drifting up from the sleeper
+            var d = 0
+            while (d < bw) { bar(bx + d, by, 4, 2, dark); bar(bx + d, by + bh - 2, 4, 2, dark); d += 7 }
+            d = 0
+            while (d < bh) { bar(bx, by + d, 2, 4, dark); bar(bx + bw - 2, by + d, 2, 4, dark); d += 7 }
+            outline1(bx - 11, by + 54, 8, 8); outline1(bx - 17, by + 66, 5, 5); bar(bx - 21, by + 75, 3, 3, dark)
+        } else {
+            outline(bx, by, bw, bh)
+            // little tail toward the creature
+            bar(bx - 6, by + 40, 6, 2, dark); bar(bx - 3, by + 37, 3, 3, dark)
+        }
         val line = when {
             revealing -> ui.reveal!!.take(((now - ui.revealAt) / Reveal.MS_PER_CHAR).toInt().coerceAtLeast(0)) +
                 (if (typedFor > 0) dots("", tick).let { if (it.isEmpty()) "" else " $it" } else "")

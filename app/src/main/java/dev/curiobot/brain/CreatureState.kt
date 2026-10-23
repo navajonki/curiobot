@@ -67,6 +67,9 @@ class CreatureState(
     val recentQuests = mutableListOf<String>()
     val hats = linkedSetOf<String>()
     var wearing: String? = null
+    /** The memory game. */
+    var memoryGames = 0
+    var memoryBest = 0
 
     val traits: Traits by lazy { Genome.traitsFor(seed) }
 
@@ -131,6 +134,8 @@ class CreatureState(
         put("recentQuests", JSONArray(recentQuests))
         put("hats", JSONArray(hats.toList()))
         put("wearing", wearing ?: JSONObject.NULL)
+        put("memoryGames", memoryGames)
+        put("memoryBest", memoryBest)
         put("journal", JSONArray().also { a ->
             for (e in journal) a.put(JSONObject().apply {
                 put("ts", e.ts); put("word", e.word ?: JSONObject.NULL); put("mood", e.mood); put("text", e.text)
@@ -226,6 +231,8 @@ class CreatureState(
             o.optJSONArray("recentQuests")?.let { a -> for (i in 0 until a.length()) s.recentQuests += a.getString(i) }
             o.optJSONArray("hats")?.let { a -> for (i in 0 until a.length()) s.hats += a.getString(i) }
             s.wearing = o.optStringOrNull("wearing")?.takeIf { it in s.hats }
+            s.memoryGames = o.optInt("memoryGames", 0)
+            s.memoryBest = o.optInt("memoryBest", 0)
             o.optJSONArray("journal")?.let { a ->
                 for (i in 0 until a.length()) {
                     val x = a.getJSONObject(i)

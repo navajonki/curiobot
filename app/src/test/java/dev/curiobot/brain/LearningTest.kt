@@ -585,3 +585,73 @@ class QuestsTest {
         assertEquals("Our quest (1/3)", Intent.QUEST_OPEN.fallbackLabel("1/3", 0))
     }
 }
+
+class DreamsTest {
+    private fun creature(vararg seen: Pair<String, String>): CreatureState {
+        val s = CreatureState(42, 0)
+        seen.forEachIndexed { i, (w, c) -> Mind.react(s, Seeing(Verdict.NORMAL, w, c, 0.9, 1.0), 1_000L + i) }
+        return s
+    }
+
+    @Test fun aDreamIsThreePagesAboutTodaysThings() {
+        assertNull(Dreams.start(creature("cup" to "kitchen"), emptyMap(), 2_000, 86_400_000, kotlin.random.Random(1)))
+        val s = creature("mug" to "kitchen", "fern" to "plant", "sock" to "clothing", "box" to "home")
+        for (seed in 0..30) {
+            val run = Dreams.start(s, mapOf("mug" to "Mugsby"), 5_000, 86_400_000, kotlin.random.Random(seed))!!
+            var page = 0
+            while (!run.done) {
+                assertEquals(page == 2, run.last)
+                val e = Event.DreamBeat(run)
+                assertTrue(e.promptLine(), e.promptLine().startsWith("event: in my dream, "))
+                assertFalse(e.promptLine(), e.promptLine().contains("{"))
+                assertTrue(e.requiredWords.size >= 2)
+                val f = Dreams.fallback(run, seed + page)
+                val c = Safety.checkLine(f, e.requiredWord, false, e.context, null, e.requiredWords, long = true)
+                assertTrue("$f ${c.failures()}", c.allOk())
+                run.pages += f
+                run.next(); page++
+            }
+            assertEquals(3, run.pages.size)
+        }
+        val run = Dreams.start(s, emptyMap(), 5_000, 86_400_000, kotlin.random.Random(3))!!
+        repeat(3) { run.pages += "Zzz..."; run.next() }
+        val st = Dreams.save(s, run, 9_000)
+        assertTrue(st.title.startsWith("A dream about"))
+        assertEquals(st, CreatureState.fromJson(s.toJson()).stories.last())
+        assertTrue(s.journal.last().text.contains("dreamed"))
+        assertEquals("boxes", Dreams.plural("box"))
+        assertEquals("cherries", Dreams.plural("cherry"))
+        assertEquals("toys", Dreams.plural("toy"))
+    }
+
+    @Test fun dreamPromptsUseTheDreamExample() {
+        val s = creature("cup" to "kitchen", "fern" to "plant")
+        val run = Dreams.start(s, emptyMap(), 2_000, 86_400_000, kotlin.random.Random(2))!!
+        val spec = Prompt.build(s.traits, Mood.SLEEPY, Event.DreamBeat(run), listOf(Intent.DREAM_NEXT, Intent.LET_SLEEP))
+        assertEquals(Prompt.DREAM_EXAMPLE, spec.examples.last())
+        assertTrue(spec.longLine)
+    }
+}
+
+class MemoryGameTest {
+    @Test fun fiveRoundsAreScoredAndKept() {
+        val s = CreatureState(5, 0)
+        val r = MemoryGame.Run()
+        val v = FloatArray(4).also { it[0] = 1f }
+        val w = FloatArray(4).also { it[1] = 1f }
+        assertFalse(MemoryGame.shownBefore(r, v))
+        r.shown += v
+        assertTrue(MemoryGame.shownBefore(r, v))
+        assertFalse(MemoryGame.shownBefore(r, w))
+        val answers = listOf(true, false, true, true, true)
+        answers.forEachIndexed { i, right -> assertEquals(i == 4, MemoryGame.judge(s, r, right, 100L + i)) }
+        assertEquals(4, r.score)
+        assertTrue(r.over)
+        assertEquals(1, s.memoryGames)
+        assertEquals(4, s.memoryBest)
+        assertTrue(s.journal.last().text.contains("4 of 5"))
+        val back = CreatureState.fromJson(s.toJson())
+        assertEquals(4, back.memoryBest)
+        for (n in 0..5) assertTrue(MemoryGame.end(n).isNotBlank())
+    }
+}

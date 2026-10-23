@@ -99,7 +99,7 @@ object Safety {
         "\\b(it|the creature)\\s+(saw|sees|seen|likes|loves|wonders|thinks|feels|remembers|wants|learned|found|named|is happy|is curious|is sleepy|is excited)\\b|\\bhow it (likes|feels|thinks)\\b")
     private val SELF_AS = Regex("\\bi('m| am) (a|an|the) (little |tiny |small |big )?([a-z]+)")
     private val EXAMPLE_ECHOES = listOf("windy", "breakfast team", "green feathers", "cousins", "floats up", "waves at",
-        "somewhere up there")
+        "somewhere up there", "skating", "frozen puddle", "wheee")
     private val MENU_PHRASES = listOf("show something new", "find something new", "ask what it thinks",
         "remember a day", "say hello back", "not quite", "nap time")
     private val SELF_AS_EXTRA = setOf("friend", "thing", "creature", "mystery", "person", "bot")
