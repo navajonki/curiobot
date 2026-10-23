@@ -3,7 +3,9 @@ package dev.curiobot.brain
 import kotlin.random.Random
 
 /** A thought the creature had and the person chose to keep ("That's cool!"). */
-data class Idea(val ts: Long, val move: String, val words: List<String>, val text: String, val hook: String = "")
+data class Idea(val ts: Long, val move: String, val words: List<String>, val text: String, val hook: String = "",
+                /** What "Say more" added, in order. */
+                val more: List<String> = emptyList())
 
 /**
  * Reflection: the creature combines things from its past into a new thought.
@@ -139,17 +141,108 @@ object Ideas {
         return null
     }
 
-    /** "That's cool!": keep it, and lean toward this kind of idea. */
-    fun keep(s: CreatureState, plan: Plan, text: String, now: Long): Idea {
-        val words = (plan.things.flatMap { listOfNotNull(it.word, it.nickname) } + (plan.idea?.words ?: emptyList())).distinct()
-        val idea = Idea(now, plan.move.id, words, text, plan.hook)
+    /** "That's cool!": keep it (with anything "Say more" added), and lean toward this kind of idea. */
+    fun keep(s: CreatureState, plan: Plan, text: String, now: Long, more: List<String> = emptyList(),
+             grown: List<More> = emptyList()): Idea {
+        val words = (plan.things.flatMap { listOfNotNull(it.word, it.nickname) } + (plan.idea?.words ?: emptyList()) +
+            grown.mapNotNull { it.extra?.word }).distinct()
+        val idea = Idea(now, plan.move.id, words, text, plan.hook, more)
         s.ideas += idea
         while (s.ideas.size > MAX_KEPT) s.ideas.removeAt(0)
         s.ideasKept++
         nudge(s, plan.move, +0.5)
+        val full = (listOf(text) + more).joinToString(" ").let { if (it.length > 220) it.take(217) + "..." else it }
         s.addJournal(JournalEntry(now, plan.things.firstOrNull()?.word, Mood.DELIGHTED.word,
-            "Day ${Mind.dayNumber(s, now)}: new idea. $text"))
+            "Day ${Mind.dayNumber(s, now)}: new idea. $full"))
         return idea
+    }
+
+    /** Asking it to say more is a small sign of interest in this kind of idea. */
+    fun interested(s: CreatureState, plan: Plan) = nudge(s, plan.move, +0.2)
+
+    // ---------- "Say more" ----------
+
+    /** How an idea grows. Code picks the direction and its content; the model only phrases it. */
+    enum class Grow(val id: String) {
+        COULD_EVEN("could_even"),  // borrow a second trait: "the cup could even have wheels"
+        STORY("story"),            // a tiny scene: "late at night they go round and round together"
+        ONE_MORE("one_more"),      // a third thing it has seen joins the idea
+    }
+
+    data class More(val grow: Grow, val content: String, val required: String, val extra: Thing? = null)
+
+    const val MAX_MORE = 2
+    val SETTINGS = listOf("on a rainy day", "at breakfast", "late at night", "on a long trip", "in a quiet room",
+        "on a sunny morning")
+
+    /** "are far away" to "be far away", for after "could even". */
+    fun base(hook: String) = if (hook.startsWith("are ")) "be " + hook.removePrefix("are ") else hook
+
+    /**
+     * Pick the next step for an idea, avoiding the directions and extra things
+     * already used on it. Returns null only if there is truly nothing to add.
+     */
+    fun grow(s: CreatureState, plan: Plan, done: List<More>, nicknames: Map<String, String>, rng: Random): More? {
+        val a = plan.things.firstOrNull() ?: return null
+        val b = plan.things.getOrNull(1)
+        val used = plan.things.map { it.word } + done.mapNotNull { it.extra?.word } + (plan.idea?.words ?: emptyList())
+        val extras = material(s, nicknames).filter { it.word !in used }
+        val usedHooks = setOf(plan.hook)
+        val otherHooks = (HOOKS[b?.cat ?: a.cat].orEmpty() + HOOKS.values.flatten().shuffled(rng).take(3))
+            .filter { it !in usedHooks && !it.startsWith("can ") }
+        val options = Grow.values().filter { g ->
+            g !in done.map { it.grow } && when (g) {
+                Grow.COULD_EVEN -> otherHooks.isNotEmpty()
+                Grow.ONE_MORE -> extras.isNotEmpty() && plan.hook.isNotEmpty()
+                Grow.STORY -> plan.hook.isNotEmpty()
+            }
+        }
+        if (options.isEmpty()) return null
+        return when (options[rng.nextInt(options.size)]) {
+            Grow.COULD_EVEN -> {
+                val h = otherHooks.first()
+                More(Grow.COULD_EVEN, "maybe ${a.phrase} could even ${base(h)}", a.name)
+            }
+            Grow.STORY -> {
+                val setting = SETTINGS[rng.nextInt(SETTINGS.size)]
+                val scene = if (b != null) "${a.phrase} and ${b.phrase} ${plan.hook} together $setting"
+                    else "${a.phrase} ${singular(plan.hook)} $setting"
+                More(Grow.STORY, "a tiny story: $scene", a.name)
+            }
+            Grow.ONE_MORE -> {
+                val c = extras[rng.nextInt(minOf(6, extras.size))]
+                More(Grow.ONE_MORE, "${c.phrase} joins in, because it ${singular(plan.hook)} too", c.name, extra = c)
+            }
+        }
+    }
+
+    fun morePromptLine(bud: String, m: More) = "event: saying more about my idea (${bud.trimEnd('.', '!')}): ${m.content}"
+
+    /** Written version of a "Say more" step, for when the model's line doesn't pass. */
+    fun moreFallback(m: More, roll: Int): String {
+        val c = m.content.replaceFirstChar { it.uppercase() }
+        return when (m.grow) {
+            Grow.COULD_EVEN -> listOf("$c. I like that.", "Ooh. $c.")
+            Grow.STORY -> listOf(c.removePrefix("A tiny story: ").replaceFirstChar { it.uppercase() } + ". The end.",
+                "I can see it. " + c.removePrefix("A tiny story: ").replaceFirstChar { it.uppercase() } + ".")
+            Grow.ONE_MORE -> listOf("And ${m.content}!", "$c!")
+        }[Math.floorMod(roll, 2)]
+    }
+
+    /** Reflect on one nest kind (from its page): a rule about the kind, or one of its things with another thing. */
+    fun planForKind(s: CreatureState, kind: String, nicknames: Map<String, String>, rng: Random): Plan? {
+        val things = material(s, nicknames)
+        val mine = things.filter { it.cat == kind }
+        val others = things.filter { it.cat != kind }
+        val p = when {
+            mine.size >= 2 -> Plan(Move.KIND_RULE, mine.shuffled(rng).take(2), kinds = Nest.NAMES[kind], hook = hookFor(kind, rng))
+            mine.size == 1 && others.isNotEmpty() -> Plan(listOf(Move.COMMON, Move.FRIENDS, Move.TEAM)[rng.nextInt(3)],
+                listOf(mine[0], others[rng.nextInt(minOf(6, others.size))]), hook = hookFor(kind, rng))
+            else -> null
+        } ?: return null
+        s.recentIdeaKeys += p.key
+        while (s.recentIdeaKeys.size > RECENT_KEYS) s.recentIdeaKeys.removeAt(0)
+        return p
     }
 
     /** "Not too sure about that one": let it go, and lean away a little. Nothing else changes. */
@@ -216,5 +309,6 @@ object Ideas {
     val KEEP = listOf("Ooh. Keeping that one.", "Into my idea pile it goes.", "I'll remember that idea.")
     val DROP = listOf("Okay, back to thinking.", "Fair. That one was a bit wobbly.", "Hm, okay. Another idea later.")
     val SKIP = listOf("I'll keep thinking about it.", "Hm. Maybe later.")
+    val NO_MORE = listOf("That's all I've got on that one.", "Hm. That's the whole idea, I think.")
     val NEED_MORE = listOf("I need to see more things first. Then I can think.", "My head is a bit empty. Show me things?")
 }

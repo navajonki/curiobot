@@ -42,7 +42,7 @@ class ModelLoopTest {
             Triple(Mood.CURIOUS, Event.GoesWith("fork", "Mugsby", "kitchen things"), intentsFresh),
             Triple(Mood.DELIGHTED, Event.KindGrew("rabbit", "animals", 3), intentsFresh),
             Triple(Mood.DELIGHTED, Event.Favorite("spoon", "kitchen things"), intentsFresh),
-        ) + ideaCases()
+        ) + ideaCases() + moreCases()
         for (seed in listOf(11L, 222L, 3333L)) {
             val t = Genome.traitsFor(seed)
             for ((mood, ev, intents) in cases) {
@@ -83,6 +83,34 @@ class ModelLoopTest {
             Ideas.Plan(Ideas.Move.BUILD_ON, listOf(t("pen", "art")), idea = kept, hook = kept.hook),
         )
         return plans.map { Triple(Mood.CURIOUS, Event.Thought(it) as Event, listOf(Intent.KEEP_IDEA, Intent.DROP_IDEA)) }
+    }
+
+    private fun moreCases(): List<Triple<Mood, Event, List<Intent>>> {
+        fun t(w: String, c: String, n: String? = null) = Ideas.Thing(w, c, n)
+        val menu = listOf(Intent.KEEP_IDEA, Intent.SAY_MORE, Intent.DROP_IDEA)
+        val cupBike = Ideas.Plan(Ideas.Move.COMMON, listOf(t("cup", "kitchen"), t("bicycle", "vehicle")), hook = "go round and round")
+        val mugFern = Ideas.Plan(Ideas.Move.COMMON, listOf(t("mug", "kitchen", "Mugsby"), t("fern", "plant")), hook = "love sunlight")
+        val pillowCat = Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("pillow", "home"), t("cat", "animal")), hook = "like naps")
+        val jacketUmb = Ideas.Plan(Ideas.Move.FRIENDS, listOf(t("jacket", "clothing"), t("umbrella", "home")), hook = "like going outside")
+        val spoonBan = Ideas.Plan(Ideas.Move.TEAM, listOf(t("spoon", "kitchen"), t("banana", "food")), hook = "make someone happy")
+        val animals = Ideas.Plan(Ideas.Move.KIND_RULE, listOf(t("dog", "animal"), t("cat", "animal")), kinds = "animals", hook = "like naps")
+        val fav = Ideas.Plan(Ideas.Move.FAVORITE_WHY, listOf(t("spoon", "kitchen")), kinds = "kitchen things", hook = "get used every day")
+        val g = Ideas.Grow.COULD_EVEN; val st = Ideas.Grow.STORY; val om = Ideas.Grow.ONE_MORE
+        val cases = listOf(
+            Triple(cupBike, "I think the cup and the bicycle go round and round!", Ideas.More(g, "maybe the cup could even have wheels", "cup")),
+            Triple(mugFern, "Mugsby and the fern both love the sun!", Ideas.More(g, "maybe Mugsby the mug could even grow a little every day", "Mugsby")),
+            Triple(pillowCat, "I think the pillow and the cat like naps together!", Ideas.More(g, "maybe the pillow could even get curious", "pillow")),
+            Triple(animals, "I think the dog and cat like naps!", Ideas.More(g, "maybe the dog could even make sounds", "dog")),
+            Triple(cupBike, "I think the cup and the bicycle go round and round!", Ideas.More(st, "a tiny story: the cup and the bicycle go round and round together late at night", "cup")),
+            Triple(jacketUmb, "I think the jacket and the umbrella both like going outside!", Ideas.More(st, "a tiny story: the jacket and the umbrella like going outside together on a rainy day", "jacket")),
+            Triple(spoonBan, "The spoon and the banana, they both make someone happy!", Ideas.More(st, "a tiny story: the spoon and the banana make someone happy together at breakfast", "spoon")),
+            Triple(fav, "I like the spoon, it's always there!", Ideas.More(st, "a tiny story: the spoon gets used every day on a sunny morning", "spoon")),
+            Triple(cupBike, "I think the cup and the bicycle go round and round!", Ideas.More(om, "the pen joins in, because it goes round and round too", "pen", t("pen", "art"))),
+            Triple(pillowCat, "I think the pillow and the cat like naps together!", Ideas.More(om, "Mugsby the mug joins in, because it likes naps too", "Mugsby", t("mug", "kitchen", "Mugsby"))),
+            Triple(jacketUmb, "I think the jacket and the umbrella both like going outside!", Ideas.More(om, "the lamp joins in, because it likes going outside too", "lamp", t("lamp", "home"))),
+            Triple(animals, "I think the dog and cat like naps!", Ideas.More(om, "the teddy bear joins in, because it likes naps too", "teddy bear", t("teddy bear", "toy"))),
+        )
+        return cases.map { (p, bud, m) -> Triple(Mood.DELIGHTED, Event.MoreThought(p, m, bud) as Event, menu) }
     }
 
     @Test fun evaluateOutputs() {

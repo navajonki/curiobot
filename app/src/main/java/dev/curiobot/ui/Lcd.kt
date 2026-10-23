@@ -34,10 +34,13 @@ data class UiState(
     val title: String? = null,
     /** When set, the screen shows the nest instead of the creature. */
     val nest: NestView? = null,
+    /** A nest kind's page: its token stands in for the creature. Level 0 draws an empty spot. */
+    val token: String? = null,
+    val tokenLevel: Int = 0,
 )
 
 /** The nest screen: a token per kind of thing, filled in as they're found. */
-data class NestView(val levels: Map<String, Int>, val headline: String, val detail: String)
+data class NestView(val levels: Map<String, Int>, val headline: String, val detail: String, val cursor: Int = -1)
 
 /**
  * A 400x240 1-bit screen, like a Sharp Memory LCD: two tones only, no
@@ -88,8 +91,9 @@ class Lcd {
             ui.mood == Mood.DELIGHTED -> if (tick / 2 % 2 == 0) -6 else 0
             else -> if (tick / 5 % 2 == 0) 0 else 2
         }
-        drawCreature(s, ui.mood, ui.asleep, blink, 14, 26 + bob, 6)
-        if (ui.asleep) {
+        if (ui.token != null) bigToken(ui.token, ui.tokenLevel)
+        else drawCreature(s, ui.mood, ui.asleep, blink, 14, 26 + bob, 6)
+        if (ui.asleep && ui.token == null) {
             val p = tick % 24
             textAt("z", 104, 40 - p / 3, small, dark)
             if (p > 8) textAt("Z", 112, 30 - (p - 8) / 3, text, dark)
@@ -147,6 +151,34 @@ class Lcd {
         textAt(hint, hx, y + 11, small, dark)
     }
 
+    /** A kind's token, large, with its level pips, where the creature usually stands. */
+    private fun bigToken(kind: String, level: Int) {
+        val k = 6; val size = 12 * k
+        val x0 = (124 - size) / 2; val y0 = 28
+        if (level == 0) {
+            var d = 0
+            while (d < size) {
+                bar(x0 + d, y0, 3, 2, dark); bar(x0 + d, y0 + size - 2, 3, 2, dark)
+                bar(x0, y0 + d, 2, 3, dark); bar(x0 + size - 2, y0 + d, 2, 3, dark)
+                d += 7
+            }
+            centeredIn("?", x0, size, y0 + size / 2 + 5, text)
+        } else {
+            Pix.NEST[kind]?.let { rows ->
+                for (y in rows.indices) for (x in rows[y].indices) if (rows[y][x] == '#') bar(x0 + x * k, y0 + y * k, k, k, dark)
+            }
+        }
+        val px0 = x0 + (size - 37) / 2
+        for (p in 0 until 3) {
+            val px = px0 + p * 14
+            if (p < level) bar(px, y0 + size + 6, 9, 9, dark) else outline1(px, y0 + size + 6, 9, 9)
+        }
+    }
+
+    private fun centeredIn(s: String, x: Int, w: Int, y: Int, p: Paint) {
+        textAt(s, x + ((w - p.measureText(s)) / 2).toInt(), y, p, dark)
+    }
+
     private fun nest(v: NestView, title: String?) {
         textAt(v.headline, 8, 36, text, dark)
         val cw = 56; val ch = 48; val x0 = 4; val y0 = 42
@@ -172,6 +204,7 @@ class Lcd {
                 val px = cx + 17 + p * 8
                 if (p < level) bar(px, cy + 40, 5, 5, dark) else if (level > 0) outline1(px, cy + 40, 5, 5)
             }
+            if (i == v.cursor) outline(cx + 4, cy - 3, 48, 51)
         }
         wrap(v.detail, ((W - 16) / small.measureText("M")).toInt()).take(1).forEach { textAt(it, 8, 204, small, dark) }
         header(title, 220)

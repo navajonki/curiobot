@@ -196,6 +196,7 @@ class TidyTest {
         assertEquals(null, Prompt.tidy("Show something new"))
         assertEquals("Hm. Tiny green feathers.", Prompt.tidy("Hm. Tiny green feathers."))
         assertEquals("I remember this, first tiger.", Prompt.tidy("I remember this: first tiger."))
+        assertEquals("Oh, the teddy bear joined in!", Prompt.tidy("Oh, the teddy bear joined in! \uD83C\uDF1E"))
         assertEquals("Spoon and banana, both make a good team!", Prompt.tidy("Spoon and banana\u2014both make a good team!"))
     }
 }

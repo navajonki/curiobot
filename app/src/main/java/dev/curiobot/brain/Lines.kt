@@ -122,6 +122,7 @@ object Lines {
     val DREAM = listOf("Zzz... {word}... zzz.", "Mm... a {word}... zzz.")
     val DREAM_EMPTY = listOf("Zzz... nothing yet... zzz.")
     val WOKE = listOf("Mm. I'm awake.", "Hello again. I slept.")
+    val KIND_EMPTY = listOf("No {label} yet. I wonder what they're like.", "An empty spot for {label}. Someday!")
     val UNNAMED = listOf("No word for it yet. I'll remember how it looks.", "A thing with no name. I like it anyway.", "Hm. A mystery. I'll keep it.")
     val WOKE_EARLY = listOf("Mm? Oh. Hi. Still a bit sleepy.", "Huh? I'm up. Mostly.", "Yawn. Okay, okay. I'm here.")
 }

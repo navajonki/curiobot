@@ -81,7 +81,7 @@ object Safety {
      * small model reaches for when it has nothing to say.
      */
     private val EXTRA_NOUNS = setOf("song", "songs", "music", "toy", "toys", "game", "games", "story", "stories",
-        "movie", "dance", "poem", "picture", "treasure")
+        "movie", "poem", "picture", "treasure")
     // Vocabulary words that are also everyday verbs or fillers.
     private val COMMON_WORDS = setOf("watch", "level", "sign", "slide", "swing", "paint", "drawing", "writing", "stamp",
         "tape", "fan", "park", "rock", "box", "letter", "hand", "screen", "stick", "trail", "field", "straw", "log",
@@ -98,7 +98,7 @@ object Safety {
     private val THIRD_PERSON = Regex(
         "\\b(it|the creature)\\s+(saw|sees|seen|likes|loves|wonders|thinks|feels|remembers|wants|learned|found|named|is happy|is curious|is sleepy|is excited)\\b|\\bhow it (likes|feels|thinks)\\b")
     private val SELF_AS = Regex("\\bi('m| am) (a|an|the) (little |tiny |small |big )?([a-z]+)")
-    private val EXAMPLE_ECHOES = listOf("windy", "breakfast team", "green feathers", "cousins")
+    private val EXAMPLE_ECHOES = listOf("windy", "breakfast team", "green feathers", "cousins", "floats up", "waves at")
     private val MENU_PHRASES = listOf("show something new", "find something new", "ask what it thinks",
         "remember a day", "say hello back", "not quite", "nap time")
     private val SELF_AS_EXTRA = setOf("friend", "thing", "creature", "mystery", "person", "bot")
@@ -141,7 +141,9 @@ object Safety {
         val given = listOfNotNull(requiredWord, context).joinToString(" ").lowercase()
         val invented = inventedNouns(lower, given)
         out += Check("off_topic", invented.isEmpty(), invented.joinToString(","))
-        val narrated = THIRD_PERSON.containsMatchIn(lower) ||
+        // In ideas, "it" is nearly always one of the things ("because it likes naps too"), so only
+        // the creature's own name or "the creature" counts there.
+        val narrated = (!long && THIRD_PERSON.containsMatchIn(lower)) || lower.contains("the creature") ||
             (selfName != null && Regex("\\b${Regex.escape(selfName.lowercase())}\\b").containsMatchIn(lower))
         out += Check("third_person", !narrated)
         val selfAs = SELF_AS.find(lower)?.groupValues?.get(4)

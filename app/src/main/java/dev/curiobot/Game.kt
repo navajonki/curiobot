@@ -65,7 +65,7 @@ class Game(private val ctx: Context) {
     enum class Button { NEXT, OK, BACK }
 
     /** Where the options came from, which decides what Back does and the header. */
-    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, IDEA }
+    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, KIND, IDEA }
 
     /** What was just seen, kept so the person can correct it. */
     private data class SeenContext(
@@ -109,6 +109,12 @@ class Game(private val ctx: Context) {
     /** The idea on screen waiting for "That's cool!" or "Not too sure", and the words it came out as. */
     private var pendingIdea: Ideas.Plan? = null
     private var pendingIdeaText: String? = null
+    /** What "Say more" has added to the idea on screen. */
+    private val pendingGrows = mutableListOf<Ideas.More>()
+    private val pendingMore = mutableListOf<String>()
+    /** The nest's selected token, and the kind whose page is open. */
+    private var nestCursor = 0
+    private var kindOpen: String? = null
     private var ticker: Job? = null
     private val frameLock = Any()
     private var lastFrame: Bitmap? = null
@@ -221,7 +227,12 @@ class Game(private val ctx: Context) {
         Telemetry.log("button", JSONObject().put("button", b.name.lowercase()).put("phase", ui.phase.name.lowercase())
             .put("cursor", ui.cursor).put("options", JSONArray(ui.options)))
         when (ui.phase) {
-            Phase.IDLE, Phase.ERROR -> when (b) {
+            Phase.IDLE, Phase.ERROR -> if (level == Level.NEST) when (b) {
+                // The nest is a grid to explore: next moves across the tokens, ok opens one.
+                Button.NEXT -> { nestCursor = (nestCursor + 1) % Nest.KINDS.size; showNest(log = false) }
+                Button.OK -> showKind(Nest.KINDS[nestCursor])
+                Button.BACK -> goBack()
+            } else when (b) {
                 Button.NEXT -> moveCursor(1)
                 Button.OK -> intents.getOrNull(ui.cursor)?.let { perform(it, args.getOrNull(ui.cursor)) }
                 Button.BACK -> goBack()
@@ -241,10 +252,11 @@ class Game(private val ctx: Context) {
         when (level) {
             Level.HOME -> {}
             Level.PHOTO, Level.DOZE, Level.NEST -> backToIdle()
+            Level.KIND -> showNest()
             Level.IDEA -> {
                 // Leaving without deciding: the idea just isn't kept. It doesn't count against that kind of idea.
                 pendingIdea?.let { Telemetry.log("idea_skipped", JSONObject().put("move", it.move.id)) }
-                pendingIdea = null; pendingIdeaText = null
+                clearIdea()
                 mood = Mind.idleMood(state)
                 choose(Mind.intentsFor(state, fresh = false))
                 showIdle(Lines.pick(Ideas.SKIP, rng.nextInt()), labelsFor(intents))
@@ -350,32 +362,45 @@ class Game(private val ctx: Context) {
                 saveState()
             }
             Intent.TRY_AGAIN -> scope.launch { prepareTextModel() }
-            Intent.REFLECT -> {
-                val plan = Ideas.plan(state, nicknameMap(), rng)
-                if (plan == null) {
-                    choose(Mind.intentsFor(state, fresh = false))
-                    showIdle(Lines.pick(Ideas.NEED_MORE, rng.nextInt()), labelsFor(intents))
-                } else {
-                    Mind.spend(state, intent)
-                    state.ideasHad++
-                    pendingIdea = plan; pendingIdeaText = null
-                    mood = Mood.CURIOUS
-                    Telemetry.log("idea_plan", JSONObject().put("move", plan.move.id)
-                        .put("things", JSONArray(plan.things.map { it.name })).put("kinds", plan.kinds ?: JSONObject.NULL)
-                        .put("builds_on", plan.idea?.text ?: JSONObject.NULL)
-                        .put("move_scores", JSONObject(state.moveScores as Map<*, *>)))
-                    turn(Event.Thought(plan), fresh = false, menu = listOf(Intent.KEEP_IDEA, Intent.DROP_IDEA) to Level.IDEA)
+            Intent.REFLECT -> startIdea(Ideas.plan(state, nicknameMap(), rng), "home")
+            Intent.THINK_KIND -> startIdea(kindOpen?.let { Ideas.planForKind(state, it, nicknameMap(), rng) }, "nest")
+            Intent.HUNT_KIND -> {
+                val h = kindOpen?.let { Hunts.forKind(it) } ?: return backToIdle()
+                Mind.startHunt(state, h, now)
+                mood = Mood.CURIOUS
+                choose(Mind.intentsFor(state, fresh = false))
+                Telemetry.log("hunt_start", JSONObject().put("hunt", h.id).put("label", h.label).put("from", "nest"))
+                showIdle(Lines.pick(Lines.HUNT_START, rng.nextInt(), label = h.label), labelsFor(intents))
+                saveState()
+            }
+            Intent.SAY_MORE -> {
+                val plan = pendingIdea
+                val bud = pendingIdeaText
+                if (plan == null || bud == null) return backToIdle()
+                val more = Ideas.grow(state, plan, pendingGrows, nicknameMap(), rng)
+                if (more == null) {
+                    choose(ideaMenu(allowMore = false), level = Level.IDEA)
+                    showIdle(Lines.pick(Ideas.NO_MORE, rng.nextInt()), labelsFor(intents))
+                    return
                 }
+                Ideas.interested(state, plan)
+                pendingGrows += more
+                mood = Mood.DELIGHTED
+                Telemetry.log("idea_more", JSONObject().put("move", plan.move.id).put("grow", more.grow.id)
+                    .put("content", more.content).put("layer", pendingGrows.size))
+                turn(Event.MoreThought(plan, more, bud), fresh = false, menu = ideaMenu() to Level.IDEA)
             }
             Intent.KEEP_IDEA, Intent.DROP_IDEA -> {
                 val plan = pendingIdea
                 val text = pendingIdeaText
-                pendingIdea = null; pendingIdeaText = null
+                val more = pendingMore.toList()
+                val grown = pendingGrows.toList()
+                clearIdea()
                 if (plan != null && text != null) {
                     val keep = intent == Intent.KEEP_IDEA
-                    if (keep) Ideas.keep(state, plan, text, now) else Ideas.drop(state, plan)
+                    if (keep) Ideas.keep(state, plan, text, now, more, grown) else Ideas.drop(state, plan)
                     Telemetry.log(if (keep) "idea_kept" else "idea_dropped", JSONObject().put("move", plan.move.id)
-                        .put("text", text).put("ideas_kept", state.ideas.size)
+                        .put("text", text).put("more", JSONArray(more)).put("ideas_kept", state.ideas.size)
                         .put("move_scores", JSONObject(state.moveScores as Map<*, *>)))
                     mood = if (keep) Mood.DELIGHTED else Mood.CONTENT
                     choose(Mind.intentsFor(state, fresh = false))
@@ -554,18 +579,78 @@ class Game(private val ctx: Context) {
     private fun nicknameFor(word: String) = things.things.filter { it.word == word && it.nickname != null }
         .maxByOrNull { it.lastSeen }?.nickname ?: word
 
-    private fun showNest() {
+    /** The nest grid. The footer describes whichever token the cursor is on. */
+    private fun showNest(log: Boolean = true) {
         val slots = Nest.slots(state)
         val found = slots.count { it.words.isNotEmpty() }
-        val fav = Nest.favorite(state)?.let { Nest.NAMES[it] }
-        val newest = state.seen.entries.filter { it.value.cat in Nest.KINDS }.maxByOrNull { it.value.last }?.key
-        val detail = listOfNotNull(fav?.let { "Favorite: $it." }, newest?.let { "Newest: $it." },
-            state.ideas.size.takeIf { it > 0 }?.let { "Ideas kept: $it." })
-            .joinToString(" ").ifEmpty { "Show me things to fill it up." }
+        if (log) {
+            // Start on the kind it saw most recently, so the first thing you see is what just changed.
+            val newestCat = state.seen.values.filter { it.cat in Nest.KINDS }.maxByOrNull { it.last }?.cat
+            if (kindOpen == null) newestCat?.let { nestCursor = Nest.KINDS.indexOf(it) }
+            Telemetry.log("nest_view", JSONObject().put("kinds_found", found).put("things_found", Nest.thingsFound(state)))
+        }
+        val slot = slots[nestCursor]
+        val name = (Nest.NAMES[slot.kind] ?: slot.kind).replaceFirstChar { it.uppercase() }
+        val fav = if (Nest.favorite(state) == slot.kind) " My favorite!" else ""
+        val detail = if (slot.words.isEmpty()) "$name: not found yet. ok to look" else "$name: ${slot.words.size} found.$fav ok to open"
+        kindOpen = null
         choose(emptyList(), level = Level.NEST)
-        Telemetry.log("nest_view", JSONObject().put("kinds_found", found).put("things_found", Nest.thingsFound(state)))
-        ui = ui.copy(phase = Phase.IDLE, options = emptyList(), cursor = 0, title = "my nest",
-            nest = NestView(slots.associate { it.kind to it.level }, "My nest: $found of ${slots.size} kinds", detail))
+        ui = ui.copy(phase = Phase.IDLE, options = emptyList(), cursor = 0, title = "my nest", token = null,
+            nest = NestView(slots.associate { it.kind to it.level }, "My nest: $found of ${slots.size} kinds", detail, nestCursor))
+    }
+
+    /** One kind's page: its token, what it has found, how close the spot is to growing, and what to do next. */
+    private fun showKind(kind: String) {
+        val slot = Nest.slots(state).first { it.kind == kind }
+        val kinds = Nest.NAMES[kind] ?: kind
+        val nick = nicknameMap()
+        val names = slot.words.map { nick[it] ?: it }
+        val list = when {
+            names.size <= 4 -> names.joinToString(", ")
+            else -> names.take(4).joinToString(", ") + " and ${names.size - 4} more"
+        }
+        val next = Nest.LEVELS.firstOrNull { it > slot.words.size }
+        val line = when {
+            names.isEmpty() -> Lines.pick(Lines.KIND_EMPTY, rng.nextInt(), label = kinds)
+            next == null -> "My $kinds: $list. This spot is full!"
+            else -> "My $kinds: $list. ${next - slot.words.size} more and this spot grows."
+        }
+        kindOpen = kind
+        mood = if (names.isEmpty()) Mood.CURIOUS else Mood.CONTENT
+        val canThink = slot.words.size >= 2 || (slot.words.size == 1 && Ideas.material(state).size >= 2)
+        val hunt = Hunts.forKind(kind)
+        val opts = listOfNotNull(Intent.THINK_KIND.takeIf { canThink }, Intent.HUNT_KIND.takeIf { hunt != null })
+        choose(opts, opts.map { if (it == Intent.HUNT_KIND) (if (names.isEmpty()) "hunt for one" else "hunt for more") else null }, Level.KIND)
+        Telemetry.log("nest_kind", JSONObject().put("kind", kind).put("found", slot.words.size).put("options", JSONArray(opts.map { it.id })))
+        showIdle(line, labelsFor(intents))
+        ui = ui.copy(token = kind, tokenLevel = slot.level)
+    }
+
+    /** Show a new idea (from Reflect or from a nest kind's page) with keep / say more / drop. */
+    private fun startIdea(plan: Ideas.Plan?, from: String) {
+        if (plan == null) {
+            choose(Mind.intentsFor(state, fresh = false))
+            showIdle(Lines.pick(Ideas.NEED_MORE, rng.nextInt()), labelsFor(intents))
+            return
+        }
+        Mind.spend(state, Intent.REFLECT)
+        state.ideasHad++
+        clearIdea()
+        pendingIdea = plan
+        mood = Mood.CURIOUS
+        Telemetry.log("idea_plan", JSONObject().put("move", plan.move.id).put("from", from)
+            .put("things", JSONArray(plan.things.map { it.name })).put("kinds", plan.kinds ?: JSONObject.NULL)
+            .put("hook", plan.hook).put("builds_on", plan.idea?.text ?: JSONObject.NULL)
+            .put("move_scores", JSONObject(state.moveScores as Map<*, *>)))
+        turn(Event.Thought(plan), fresh = false, menu = ideaMenu() to Level.IDEA)
+    }
+
+    private fun ideaMenu(allowMore: Boolean = true) = listOfNotNull(Intent.KEEP_IDEA,
+        Intent.SAY_MORE.takeIf { allowMore && pendingGrows.size < Ideas.MAX_MORE }, Intent.DROP_IDEA)
+
+    private fun clearIdea() {
+        pendingIdea = null; pendingIdeaText = null
+        pendingGrows.clear(); pendingMore.clear()
     }
 
     private fun logReaction(word: String, r: Reaction, novelty: Double) {
@@ -635,6 +720,7 @@ class Game(private val ctx: Context) {
             val result = withContext(textThread) { compose(traits, m, event, next) }
             lastTurn = result.log
             if (event is Event.Thought) pendingIdeaText = result.line
+            if (event is Event.MoreThought) pendingMore += result.line
             Telemetry.log("turn", result.log)
             showIdle(result.line, result.labels)
             saveState()
@@ -730,6 +816,7 @@ class Game(private val ctx: Context) {
             is Event.KindGrew -> Lines.pick(Lines.KIND_GREW, roll, event.word, label = event.kinds)
             is Event.GoesWith -> Lines.pick(Lines.GOES_WITH, roll, event.word, label = event.other)
             is Event.Thought -> Ideas.fallback(event.plan, roll)
+            is Event.MoreThought -> Ideas.moreFallback(event.more, roll)
             else -> event.requiredWord?.let { Lines.pick(Lines.FALLBACK[m] ?: Lines.FALLBACK.getValue(Mood.CURIOUS), roll, it, name) }
                 ?: Lines.pick(Lines.IDLE[m] ?: Lines.IDLE.getValue(Mood.CURIOUS), roll)
         }
@@ -748,6 +835,7 @@ class Game(private val ctx: Context) {
         Level.TEACH -> "what is it?"
         Level.DOZE -> "sleepy"
         Level.NEST -> "my nest"
+        Level.KIND -> kindOpen?.let { Nest.NAMES[it] }
         Level.IDEA -> "new idea"
     }
 

@@ -317,3 +317,80 @@ class IdeasTest {
         assertEquals(Nest.KINDS.toSet(), Ideas.HOOKS.keys)
     }
 }
+
+class SayMoreTest {
+    private fun creature(vararg seen: Pair<String, String>): CreatureState {
+        val s = CreatureState(42, 0)
+        seen.forEachIndexed { i, (w, c) -> Mind.react(s, Seeing(Verdict.NORMAL, w, c, 0.9, 1.0), 1_000L + i) }
+        return s
+    }
+
+    @Test fun growsTwiceInDifferentDirections() {
+        val s = creature("cup" to "kitchen", "bicycle" to "vehicle", "pen" to "art", "fern" to "plant")
+        val plan = Ideas.Plan(Ideas.Move.COMMON, Ideas.material(s).filter { it.word in setOf("cup", "bicycle") },
+            hook = "go round and round")
+        val rng = kotlin.random.Random(5)
+        val done = mutableListOf<Ideas.More>()
+        repeat(Ideas.MAX_MORE) {
+            val m = Ideas.grow(s, plan, done, emptyMap(), rng)!!
+            assertFalse(m.grow in done.map { it.grow })
+            done += m
+            val e = Event.MoreThought(plan, m, "I think the cup and the bicycle go round and round!")
+            assertTrue(e.promptLine().startsWith("event: saying more about my idea (I think the cup and the bicycle go round and round)"))
+            assertEquals(listOf(m.required), e.requiredWords)
+            m.extra?.let { assertFalse(it.word in setOf("cup", "bicycle")) }
+            val f = Ideas.moreFallback(m, 0)
+            assertTrue(f, f.contains(m.required))
+            assertTrue(f, Safety.checkLine(f, m.required, false, e.context, null, long = true).allOk())
+        }
+        // all three directions eventually run out
+        done += Ideas.grow(s, plan, done, emptyMap(), rng)!!
+        assertNull(Ideas.grow(s, plan, done, emptyMap(), rng))
+    }
+
+    @Test fun couldEvenReadsRight() {
+        assertEquals("be far away", Ideas.base("are far away"))
+        assertEquals("have wheels", Ideas.base("have wheels"))
+    }
+
+    @Test fun keptIdeasRememberWhatWasAdded() {
+        val s = creature("cup" to "kitchen", "bicycle" to "vehicle", "pen" to "art")
+        val plan = Ideas.Plan(Ideas.Move.COMMON, Ideas.material(s).take(2), hook = "go places")
+        val m = Ideas.More(Ideas.Grow.ONE_MORE, "the pen joins in, because it goes places too", "pen",
+            extra = Ideas.material(s).first { it.word == "pen" })
+        val idea = Ideas.keep(s, plan, "I think they both go places.", 9_000, listOf("And the pen goes places too!"), listOf(m))
+        assertEquals(listOf("And the pen goes places too!"), idea.more)
+        assertTrue("pen" in idea.words)
+        assertTrue(s.journal.last().text.contains("And the pen"))
+        assertEquals(idea, CreatureState.fromJson(s.toJson()).ideas.last())
+        Ideas.interested(s, plan)
+        assertEquals(1.7, s.moveScores["common"]!!, 1e-9)
+    }
+
+    @Test fun nestKindsCanSeedIdeasAndSafeHunts() {
+        val s = creature("cup" to "kitchen", "fork" to "kitchen", "dog" to "animal")
+        val rng = kotlin.random.Random(2)
+        val k = Ideas.planForKind(s, "kitchen", emptyMap(), rng)!!
+        assertEquals(Ideas.Move.KIND_RULE, k.move)
+        assertTrue(k.things.all { it.cat == "kitchen" })
+        val one = Ideas.planForKind(s, "animal", emptyMap(), rng)!!
+        assertTrue(one.things.any { it.word == "dog" } && one.things.size == 2)
+        assertNull(Ideas.planForKind(s, "sky", emptyMap(), rng))
+        // hunts from the nest only for kinds that are safe to look for at home
+        for (kind in listOf("animal", "bug", "nature", "sky", "place", "vehicle", "tool", "sport")) assertNull(kind, Hunts.forKind(kind))
+        for (kind in listOf("food", "drink", "clothing", "toy", "music", "plant", "furniture", "kitchen", "art", "tech")) {
+            assertNotNull(kind, Hunts.forKind(kind))
+        }
+    }
+
+    @Test fun morePromptsUseTheirOwnExamples() {
+        val s = creature("cup" to "kitchen", "bicycle" to "vehicle")
+        val plan = Ideas.Plan(Ideas.Move.COMMON, Ideas.material(s), hook = "go places")
+        val m = Ideas.More(Ideas.Grow.COULD_EVEN, "maybe the cup could even have wheels", "cup")
+        val spec = Prompt.build(s.traits, Mood.DELIGHTED, Event.MoreThought(plan, m, "I think they both go places."),
+            listOf(Intent.KEEP_IDEA, Intent.SAY_MORE, Intent.DROP_IDEA))
+        assertEquals(listOf(Prompt.IDEA_EXAMPLE, Prompt.MORE_EXAMPLE), spec.examples)
+        assertTrue(spec.longLine)
+        assertFalse(spec.user.contains("intents:"))
+    }
+}

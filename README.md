@@ -38,7 +38,11 @@ buttons ─► Game ─► Mind (seed traits, needs, reactions, journal) ◄─�
   code picks the things, the way of combining them and the connection (a trait
   borrowed from one thing's kind), and the model only voices it. "That's cool!"
   keeps the idea, which later ideas can build on; "Not too sure about that one"
-  drops it. The kinds of ideas you keep become more likely.
+  drops it. The kinds of ideas you keep become more likely. "Say more" grows an
+  idea up to twice (a "could even" leap, a tiny story, or a third thing joining).
+- **Explorable nest.** Next moves across the tokens, ok opens a kind's page with
+  what it found and how close the spot is to growing, plus "Think about these"
+  and, for kinds that are safe to look for at home, "Hunt for more".
 - **Grounded lines.** Code picks what to talk about (the word, the link, the
   thought); the model only voices it. Lines that name things it didn't see, talk
   about itself as "it", or trail off in a question are rejected. Anything about a

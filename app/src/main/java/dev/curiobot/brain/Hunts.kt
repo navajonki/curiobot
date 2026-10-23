@@ -53,6 +53,13 @@ object Hunts {
         "notebook", "crayon", "sweater", "scarf", "sponge", "napkin", "carrot", "cookie", "toy car", "doll",
     )
 
+    /** The hunt to offer from a nest kind's page, for kinds that are safe to look for at home. */
+    private val FOR_KIND = mapOf("food" to "eat", "drink" to "drink", "clothing" to "wear", "toy" to "play",
+        "music" to "music", "plant" to "green", "furniture" to "sit", "kitchen" to "kitchen", "art" to "draw",
+        "tech" to "gadget")
+
+    fun forKind(kind: String): Hunt? = FOR_KIND[kind]?.let { byId(it) }
+
     fun byId(id: String?): Hunt? {
         if (id == null) return null
         CATEGORY.firstOrNull { it.id == id }?.let { return it }

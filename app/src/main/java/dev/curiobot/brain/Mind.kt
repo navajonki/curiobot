@@ -45,6 +45,10 @@ enum class Intent(val id: String, val ask: String, val labels: List<String>, val
     REFLECT("reflect", "", listOf("Reflect"), modelLabel = false),
     KEEP_IDEA("keep_idea", "", listOf("That's cool!"), modelLabel = false),
     DROP_IDEA("drop_idea", "", listOf("Not too sure about that one"), modelLabel = false),
+    SAY_MORE("say_more", "", listOf("Say more"), modelLabel = false),
+    /** On a nest kind's page. */
+    THINK_KIND("think_kind", "", listOf("Think about these"), modelLabel = false),
+    HUNT_KIND("hunt_kind", "", listOf("{word}"), modelLabel = false),
     NAP("nap", "nap", listOf("Nap time", "Time to rest")),
     SAY_HI("say_hi", "say hello back", listOf("Say hello", "Wave hello")),
     CORRECT("correct", "", listOf("Not quite"), modelLabel = false),
@@ -163,6 +167,13 @@ sealed class Event {
         override val context get() = (plan.things.flatMap { listOfNotNull(it.word, it.nickname) } +
             listOfNotNull(plan.kinds, plan.idea?.text, plan.hook)).joinToString(" ")
         override fun promptLine() = Ideas.promptLine(plan)
+    }
+    /** "Say more": grow the idea on screen in a direction code picked. */
+    data class MoreThought(val plan: Ideas.Plan, val more: Ideas.More, val bud: String) : Event() {
+        override val requiredWord get() = more.required
+        override val context get() = (plan.things.flatMap { listOfNotNull(it.word, it.nickname) } +
+            listOfNotNull(more.extra?.word, more.extra?.nickname, plan.kinds, plan.hook, more.content, bud)).joinToString(" ")
+        override fun promptLine() = Ideas.morePromptLine(bud, more)
     }
     object Hello : Event() {
         override val requiredWord: String? get() = null
