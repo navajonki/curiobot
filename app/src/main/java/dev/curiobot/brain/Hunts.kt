@@ -41,7 +41,8 @@ object Hunts {
             "calendar")),
         Hunt("gadget", "a gadget", words = setOf("laptop", "computer", "keyboard", "computer mouse", "headphones",
             "earbuds", "speaker", "television", "camera", "tablet", "game controller", "remote control", "radio")),
-        Hunt("glow", "something that glows", words = setOf("lamp", "flashlight", "television", "screen")),
+        Hunt("glow", "something that glows", words = setOf("lamp", "flashlight", "television", "screen", "laptop",
+            "computer", "tablet")),
     )
 
     /** Common, countable, safe things for "I've never seen a ..." hunts. */

@@ -43,6 +43,12 @@ buttons ─► Game ─► Mind (seed traits, needs, reactions, journal) ◄─�
 - **Explorable nest.** Next moves across the tokens, ok opens a kind's page with
   what it found and how close the spot is to growing, plus "Think about these"
   and, for kinds that are safe to look for at home, "Hunt for more".
+- **Quests and hats.** "Play a game" offers a quest: three things to find for
+  something like Mugsby's party (something to eat, something that glows,
+  something to play with), shown in any order with the camera. A flag in the
+  status bar tracks it. Finishing one puts on a little party scene with what you
+  found, and earns a hat (`brain/Quests.kt`). A full nest spot earns one too (a
+  chef hat for six kitchen things). "Try on hats" previews each as you scroll.
 - **Grounded lines.** Code picks what to talk about (the word, the link, the
   thought); the model only voices it. Lines that name things it didn't see, talk
   about itself as "it", or trail off in a question are rejected. Anything about a
@@ -58,7 +64,7 @@ the camera). Menus other than home show a small header with where you are.
 
 | Path | What |
 |---|---|
-| `app/src/main/java/dev/curiobot/brain/` | Portable creature logic (no Android imports): `Genome`, `CreatureState`, `Mind`, `Nest`, `Hunts`, `Things`, `Prompt`, `Safety`, `Lines` |
+| `app/src/main/java/dev/curiobot/brain/` | Portable creature logic (no Android imports): `Genome`, `CreatureState`, `Mind`, `Nest`, `Hunts`, `Quests`, `Ideas`, `Stories`, `HotCold`, `Things`, `Prompt`, `Safety`, `Lines` |
 | `.../vision/Eye.kt` | Image encoder + vocabulary matching and tripwires |
 | `.../text/` | `TextModel` (LiteRT-LM, GPU then CPU) and `ModelStore` (download) |
 | `.../ui/` | 1-bit renderer, procedural sprites, dithered viewfinder |

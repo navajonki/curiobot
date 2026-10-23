@@ -58,6 +58,15 @@ class CreatureState(
     val recentGameTargets = mutableListOf<String>()
     /** Finished tiny adventures. */
     val stories = mutableListOf<Story>()
+    /** The current quest (see [Quests]), the hats it has earned and the one it has on. */
+    var questId: String? = null
+    var questName = ""
+    val questSteps = mutableListOf<Quests.Step>()
+    var questStartedAt = 0L
+    var questsDone = 0
+    val recentQuests = mutableListOf<String>()
+    val hats = linkedSetOf<String>()
+    var wearing: String? = null
 
     val traits: Traits by lazy { Genome.traitsFor(seed) }
 
@@ -112,6 +121,16 @@ class CreatureState(
         put("stories", JSONArray().also { a ->
             for (st in stories) a.put(JSONObject().apply { put("ts", st.ts); put("title", st.title); put("pages", JSONArray(st.pages)) })
         })
+        put("questId", questId ?: JSONObject.NULL)
+        put("questName", questName)
+        put("questSteps", JSONArray().also { a ->
+            for (st in questSteps) a.put(JSONObject().apply { put("hunt", st.hunt); put("found", st.found ?: JSONObject.NULL) })
+        })
+        put("questStartedAt", questStartedAt)
+        put("questsDone", questsDone)
+        put("recentQuests", JSONArray(recentQuests))
+        put("hats", JSONArray(hats.toList()))
+        put("wearing", wearing ?: JSONObject.NULL)
         put("journal", JSONArray().also { a ->
             for (e in journal) a.put(JSONObject().apply {
                 put("ts", e.ts); put("word", e.word ?: JSONObject.NULL); put("mood", e.mood); put("text", e.text)
@@ -134,6 +153,8 @@ class CreatureState(
         put("hunts_done", huntsDone)
         put("taught", taughtCount)
         put("ideas_kept", ideas.size)
+        put("quest", questId ?: JSONObject.NULL)
+        put("hats", hats.size)
     }
 
     companion object {
@@ -192,6 +213,19 @@ class CreatureState(
                     s.stories += Story(x.getLong("ts"), x.getString("title"), List(p.length()) { p.getString(it) })
                 }
             }
+            s.questId = o.optStringOrNull("questId")
+            s.questName = o.optString("questName", "")
+            o.optJSONArray("questSteps")?.let { a ->
+                for (i in 0 until a.length()) {
+                    val x = a.getJSONObject(i)
+                    s.questSteps += Quests.Step(x.getString("hunt"), x.optStringOrNull("found"))
+                }
+            }
+            s.questStartedAt = o.optLong("questStartedAt", 0)
+            s.questsDone = o.optInt("questsDone", 0)
+            o.optJSONArray("recentQuests")?.let { a -> for (i in 0 until a.length()) s.recentQuests += a.getString(i) }
+            o.optJSONArray("hats")?.let { a -> for (i in 0 until a.length()) s.hats += a.getString(i) }
+            s.wearing = o.optStringOrNull("wearing")?.takeIf { it in s.hats }
             o.optJSONArray("journal")?.let { a ->
                 for (i in 0 until a.length()) {
                     val x = a.getJSONObject(i)

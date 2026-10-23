@@ -42,6 +42,12 @@ class ModelLoopTest {
             Triple(Mood.CURIOUS, Event.GoesWith("fork", "Mugsby", "kitchen things"), intentsFresh),
             Triple(Mood.DELIGHTED, Event.KindGrew("rabbit", "animals", 3), intentsFresh),
             Triple(Mood.DELIGHTED, Event.Favorite("spoon", "kitchen things"), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.QuestStep("banana", "something to eat", "Mugsby's party", 1, 3), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.QuestStep("lamp", "something that glows", "a tiny party", 2, 3), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.QuestStep("pillow", "something soft", "the coziest nap", 1, 3), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.QuestStep("teapot", "something from the kitchen", "a fancy tea party", 2, 3), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.QuestStep("backpack", "a backpack", "the explorer kit", 1, 3), intentsFresh),
+            Triple(Mood.DELIGHTED, Event.QuestStep("crayon", "something to draw with", "art day", 1, 3), intentsFresh),
         ) + ideaCases() + moreCases() + storyCases()
         for (seed in listOf(11L, 222L, 3333L)) {
             val t = Genome.traitsFor(seed)

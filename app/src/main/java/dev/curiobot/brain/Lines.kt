@@ -67,6 +67,7 @@ object Lines {
     val FAVORITE = listOf("{Word}! I think {label} are my favorite now.", "Another one! {Label} might be my favorite.")
     val KIND_GREW = listOf("The {word}! My {label} spot is growing.", "A {word}. More {label} for my nest.")
     val GOES_WITH = listOf("A {word}. It goes with the {label}.", "Ooh, a {word}. Like the {label} from before.")
+    val QUEST_STEP = listOf("A {word}! That's {label} for the quest.", "The {word}! One more thing for the quest.")
     val FOUND = listOf("Found it! A {word}!", "A {word}! That's the hunt done.")
     val WISH_CAME_TRUE = listOf("A {word}! My wish came true!", "Oh! A {word}. Just what I wished for.")
     val NAMED = listOf("I'll call you {label}, little {word}.", "This {word} is {label} now.")

@@ -493,3 +493,95 @@ class StoriesTest {
         assertEquals(3, spec.requiredWords.size) // both names and the beat's key word
     }
 }
+
+class QuestsTest {
+    private fun creature(vararg seen: Pair<String, String>): CreatureState {
+        val s = CreatureState(42, 0)
+        seen.forEachIndexed { i, (w, c) -> Mind.react(s, Seeing(Verdict.NORMAL, w, c, 0.9, 1.0), 1_000L + i) }
+        return s
+    }
+
+    @Test fun everyQuestIsMadeOfSafeHuntsAndEarnsARealHat() {
+        for (t in Quests.TEMPLATES) {
+            assertEquals(3, t.steps.size)
+            for (st in t.steps) assertNotNull("${t.id}: $st", Hunts.byId(st))
+            assertNotNull(t.hat, Hats.byId(t.hat))
+        }
+        for (h in Hats.FOR_KIND.values) assertNotNull(h, Hats.byId(h))
+        assertEquals(Hats.ALL.size, Hats.ALL.map { it.id }.toSet().size)
+    }
+
+    @Test fun stepsFillInAnyOrderAndFinishWithAHat() {
+        val s = CreatureState(7, 0)
+        val rng = kotlin.random.Random(3)
+        var a = Quests.pick(s, mapOf("mug" to "Mugsby"), rng, 100)
+        // Steer to the party quest for a predictable check.
+        while (a.template.id != "party") { Quests.clear(s); s.recentQuests.clear(); a = Quests.pick(s, mapOf("mug" to "Mugsby"), rng, 100) }
+        assertEquals("Mugsby's party", a.name)
+        assertNull(Quests.progress(s, "fern", "plant"))
+        assertEquals("play", Quests.progress(s, "ball", "toy")?.hunt)
+        assertNull(Quests.progress(s, "ball", "toy")) // one thing fills one step
+        assertEquals("eat", Quests.progress(s, "banana", "food")?.hunt)
+        assertEquals(2, Quests.active(s)!!.done)
+        assertNull(Quests.finish(s, 200)) // not done yet
+        // survives a save and load mid-quest
+        val back = CreatureState.fromJson(s.toJson())
+        assertEquals(2, Quests.active(back)!!.done)
+        assertEquals("Mugsby's party", Quests.active(back)!!.name)
+        Quests.undo(s, "banana")
+        assertEquals(1, Quests.active(s)!!.done)
+        Quests.progress(s, "banana", "food")
+        assertEquals("glow", Quests.progress(s, "lamp", "home")?.hunt)
+        assertTrue(Quests.active(s)!!.complete)
+        val done = Quests.finish(s, 300)!!
+        assertEquals("party", done.template.hat)
+        assertNull(Quests.active(s))
+        assertEquals(setOf("party"), s.hats)
+        assertEquals("party", s.wearing)
+        assertEquals(1, s.questsDone)
+        assertTrue(s.journal.last().text, s.journal.last().text.contains("Mugsby's party") && s.journal.last().text.contains("party hat"))
+        val loaded = CreatureState.fromJson(s.toJson())
+        assertEquals(setOf("party"), loaded.hats)
+        assertEquals("party", loaded.wearing)
+        // the next quest is a different one, and leans toward hats it doesn't have
+        val next = Quests.pick(s, emptyMap(), rng, 400)
+        assertNotEquals("party", next.template.id)
+        assertFalse(next.name.contains("{"))
+    }
+
+    @Test fun aFullNestSpotEarnsItsHatOnce() {
+        val s = CreatureState(1, 0)
+        assertEquals("chef", Hats.forFullKind(s, "kitchen"))
+        assertNull(Hats.forFullKind(s, "sky"))
+        assertTrue(Hats.unlock(s, "chef"))
+        assertFalse(Hats.unlock(s, "chef"))
+        assertNull(Hats.forFullKind(s, "kitchen"))
+        assertEquals("And I got an explorer hat.", Hats.fill("And I got a {hat}.", "explorer"))
+        assertEquals("A bow for me!", Hats.fill("A {hat} for me!", "bow"))
+        assertEquals("Headphones for me!", Hats.fill("A {hat} for me!", "headphones"))
+    }
+
+    @Test fun questLinesPassTheChecks() {
+        val s = creature("cup" to "kitchen")
+        for (roll in 0..3) {
+            val step = Event.QuestStep("banana", "something to eat", "Mugsby's party", 1, 3)
+            val f = Lines.pick(Lines.QUEST_STEP, roll, step.word, label = step.label)
+            assertTrue(f, Safety.checkLine(f, step.requiredWord, false, step.context).allOk())
+            val d = Lines.pick(Quests.DONE, roll, "lamp", label = "a fancy tea party").let { Hats.fill(it, "tophat") }
+            assertTrue(d, d.startsWith("We did it! A fancy") || d.startsWith("Hooray! A fancy"))
+            assertTrue(d, Safety.checkLine(d, null, false, "a fancy tea party top hat", long = true).allOk())
+            for (h in Hats.ALL) assertTrue(h.line, Safety.checkLine(h.line, null, false, h.name).allOk())
+        }
+        val spec = Prompt.build(s.traits, Mood.DELIGHTED, Event.QuestStep("banana", "something to eat", "a tiny party", 1, 3),
+            listOf(Intent.ASK_ABOUT, Intent.CORRECT, Intent.SHOW_NEW))
+        assertTrue(spec.user.contains("for a tiny party and found a banana"))
+    }
+
+    @Test fun anActiveQuestShowsOnHome() {
+        val s = creature("cup" to "kitchen")
+        assertFalse(Intent.QUEST_OPEN in Mind.intentsFor(s, fresh = false))
+        Quests.pick(s, emptyMap(), kotlin.random.Random(1), 0)
+        assertTrue(Intent.QUEST_OPEN in Mind.intentsFor(s, fresh = false))
+        assertEquals("Our quest (1/3)", Intent.QUEST_OPEN.fallbackLabel("1/3", 0))
+    }
+}

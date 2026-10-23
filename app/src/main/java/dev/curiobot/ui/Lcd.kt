@@ -45,7 +45,21 @@ data class UiState(
     /** A banner for big moments (new kind, hunt done, found it), shown during the reveal. */
     val fanfare: String? = null,
     val fanfareKind: String? = null,
+    /** The hat it has on, if any (see Hats). */
+    val hat: String? = null,
+    /** A quest in progress: a small flag and "2/3" in the status bar. */
+    val questBadge: String? = null,
+    /** The quest page: a checklist in place of the speech bubble's line. */
+    val quest: QuestView? = null,
+    /** A celebration scene that replaces the whole home layout. */
+    val scene: Scene? = null,
 )
+
+/** A quest's checklist: each step's label and what filled it, if anything. */
+data class QuestView(val title: String, val steps: List<Pair<String, String?>>)
+
+/** The payoff: a banner, the creature in its new hat, and the things that made it happen. */
+data class Scene(val banner: String, val items: List<Pair<String, String?>>)
 
 data class Hud(val label: String, val level: Double, val clue: String, val note: String? = null, val seconds: Int = 0)
 
@@ -97,6 +111,7 @@ class Lcd {
             return
         }
         ui.nest?.let { nest(it, ui.title); return }
+        if (ui.scene != null && ui.phase != Phase.THINKING) { scene(ui, ui.scene, tick); return }
         // creature
         if (sprite == null || spriteSeed != ui.spriteSeed) {
             sprite = CreatureSprite(ui.spriteSeed); spriteSeed = ui.spriteSeed
@@ -122,7 +137,7 @@ class Lcd {
             }
         }
         if (ui.token != null) bigToken(ui.token, ui.tokenLevel)
-        else drawCreature(s, ui.mood, ui.asleep, blink, 14 + dx, 26 + (if (revealing) dy else bob), 6)
+        else drawCreature(s, ui.mood, ui.asleep, blink, 14 + dx, 26 + (if (revealing) dy else bob), 6, ui.hat)
         if (revealing && ui.fanfare != null && typedFor >= 0) sparkles(tick)
         if (ui.asleep && ui.token == null) {
             val p = tick % 24
@@ -141,7 +156,8 @@ class Lcd {
             else -> ui.line
         }
         val maxChars = ((bw - 16) / charW).toInt()
-        wrap(line, maxChars).take(5).forEachIndexed { i, l -> textAt(l, bx + 8, by + 18 + i * 16, text, dark) }
+        if (ui.quest != null && !revealing && ui.phase != Phase.THINKING) questCard(ui.quest, bx, by, bw)
+        else wrap(line, maxChars).take(5).forEachIndexed { i, l -> textAt(l, bx + 8, by + 18 + i * 16, text, dark) }
         header(ui.title, 124)
         if (revealing && ui.fanfare != null) fanfare(ui.fanfare, ui.fanfareKind, tick) else options(ui, top = 140)
         if (ui.phase == Phase.ERROR && ui.status.isNotEmpty()) textAt(ui.status, 8, H - 4, small, dark)
@@ -175,11 +191,11 @@ class Lcd {
     }
 
     /** Up to four rows; longer lists scroll with the cursor and show arrows. */
-    private fun options(ui: UiState, top: Int) {
+    private fun options(ui: UiState, top: Int, rows: Int = ROWS) {
         val rowH = 25
         val n = ui.options.size
-        val first = if (n <= ROWS) 0 else (ui.cursor - (ROWS - 1)).coerceIn(0, n - ROWS)
-        for (row in 0 until minOf(ROWS, n)) {
+        val first = if (n <= rows) 0 else (ui.cursor - (rows - 1)).coerceIn(0, n - rows)
+        for (row in 0 until minOf(rows, n)) {
             val i = first + row
             val y = top + row * rowH
             val opt = ui.options[i]
@@ -191,7 +207,7 @@ class Lcd {
             }
         }
         if (first > 0) arrow(W - 13, top + 4, up = true)
-        if (first + ROWS < n) arrow(W - 13, top + ROWS * rowH - 12, up = false)
+        if (first + rows < n) arrow(W - 13, top + rows * rowH - 12, up = false)
     }
 
     private fun arrow(x: Int, y: Int, up: Boolean) {
@@ -273,9 +289,70 @@ class Lcd {
         header(title, 220)
     }
 
+    /** The quest checklist, drawn inside the speech bubble. */
+    private fun questCard(q: QuestView, bx: Int, by: Int, bw: Int) {
+        val maxBig = ((bw - 16) / charW).toInt()
+        textAt(q.title.let { if (it.length > maxBig) it.take(maxBig - 1) + "." else it }, bx + 8, by + 18, text, dark)
+        val maxSmall = ((bw - 34) / small.measureText("M")).toInt()
+        q.steps.take(3).forEachIndexed { i, (label, found) ->
+            val y = by + 30 + i * 20
+            if (found != null) {
+                bar(bx + 8, y, 11, 11, dark)
+                // a light tick in the box
+                for ((tx, ty) in TICK) bar(bx + 8 + tx, y + ty, 2, 2, light)
+            } else outline1(bx + 8, y, 11, 11)
+            val full = if (found == null) label else "$label: $found"
+            textAt(if (full.length <= maxSmall) full else found ?: label.take(maxSmall), bx + 26, y + 10, small, dark)
+        }
+    }
+
+    /** The celebration: a banner, the creature in its hat on the left, what we found on a little table. */
+    private fun scene(ui: UiState, sc: Scene, tick: Int) {
+        // falling confetti, behind everything, above the table
+        for (i in 0 until 22) {
+            val x = (i * 151 + 37) % (W - 8) + 4
+            val y = 48 + ((i * 53 + tick * (2 + i % 3)) % 56)
+            if (i % 2 == 0) bar(x, y, 3, 3, dark) else bar(x, y, 2, 4, dark)
+        }
+        // banner
+        val by = 24; val bh = 22
+        bar(4, by, W - 8, bh, dark)
+        for (x in 8 until W - 8 step 8) if ((x / 8 + tick) % 2 == 0) bar(x, by + 2, 2, 2, light)
+        val big = Paint(text).apply { textSize = 16f }
+        val t = sc.banner.uppercase().let { if (big.measureText(it) > W - 24) it.take(28) else it }
+        textAt(t, ((W - big.measureText(t)) / 2).toInt(), by + 17, big, light)
+        // the creature, bouncing
+        if (sprite == null || spriteSeed != ui.spriteSeed) { sprite = CreatureSprite(ui.spriteSeed); spriteSeed = ui.spriteSeed }
+        val hop = if (tick / 2 % 2 == 0) -4 else 0
+        drawCreature(sprite!!, Mood.DELIGHTED, false, false, 22, 58 + hop, 5, ui.hat, clipTop = by + bh + 1)
+        // the table, with each thing's token hopping in turn
+        bar(128, 108, W - 136, 2, dark)
+        sc.items.take(3).forEachIndexed { i, (word, kind) ->
+            val sx = 136 + i * 88
+            val up = if ((tick / 3) % 3 == i) -5 else 0
+            val rows = kind?.let { Pix.NEST[it] }
+            if (rows != null) {
+                for (y in rows.indices) for (x in rows[y].indices) if (rows[y][x] == '#') bar(sx + 22 + x * 3, 68 + up + y * 3, 3, 3, dark)
+            } else {
+                outline1(sx + 22, 68 + up, 36, 36); centeredIn("?", sx + 22, 36, 68 + up + 23, text)
+            }
+            val w = if (word.length > 12) word.take(11) + "." else word
+            centeredIn(w, sx, 80, 124, small)
+        }
+        // what it says, then the options
+        val maxChars = ((W - 16) / charW).toInt()
+        wrap(ui.line, maxChars).take(2).forEachIndexed { i, l -> textAt(l, 8, 152 + i * 15, text, dark) }
+        options(ui, top = 186, rows = 2)
+    }
+
     private fun statusBar(ui: UiState) {
         textAt(ui.name, 6, 13, text, dark)
-        if (ui.wish) icon(Pix.STAR, 10 + text.measureText(ui.name).toInt(), 4)
+        var bx = 10 + text.measureText(ui.name).toInt()
+        if (ui.wish) { icon(Pix.STAR, bx, 4); bx += 14 }
+        ui.questBadge?.let { badge ->
+            icon(Pix.FLAG, bx + 2, 4)
+            textAt(badge, bx + 13, 13, small, dark)
+        }
         // Two labeled meters, right-aligned: fun fills as it sees new things, energy drops as it looks.
         val mw = 48
         val eMeter = W - 6 - mw
@@ -332,9 +409,54 @@ class Lcd {
         bitmap.setPixels(framePixels, 0, W, 0, 0, W, H)
     }
 
-    private fun drawCreature(s: CreatureSprite, mood: Mood, asleep: Boolean, blink: Boolean, x0: Int, y0: Int, k: Int) {
-        for (y in 0 until 16) for (x in 0 until 16) if (s.body[y][x]) bar(x0 + x * k, y0 + y * k, k, k, dark)
+    private fun drawCreature(s: CreatureSprite, mood: Mood, asleep: Boolean, blink: Boolean, x0: Int, y0: Int, k: Int,
+                             hat: String? = null, clipTop: Int = 0) {
+        val h = hat?.let { Pix.HATS[it] }
+        for (y in 0 until 16) for (x in 0 until 16) {
+            if (s.body[y][x] && !(h != null && (y to x) in s.appendage)) bar(x0 + x * k, y0 + y * k, k, k, dark)
+        }
         for ((y, x) in s.face(mood, asleep, blink)) if (y in 0..15 && x in 0..15) bar(x0 + x * k, y0 + y * k, k, k, light)
+        if (h != null) drawHat(s, h, x0, y0, k, clipTop)
+    }
+
+    /** A hat on the head: solid, dithered or light cells, with a thin light edge where it meets the body. */
+    private fun drawHat(s: CreatureSprite, h: Pix.Hat, x0: Int, y0: Int, k: Int, clipTop: Int) {
+        val top = s.headTop - h.anchor
+        fun cell(c: Int, r: Int): Char = h.rows.getOrNull(r - top)?.getOrNull(c) ?: '.'
+        fun clip(x: Int, y: Int, w: Int, hh: Int, p: Paint) {
+            val cy = maxOf(y, clipTop)
+            if (y + hh > cy) bar(x, cy, w, y + hh - cy, p)
+        }
+        for ((ri, row) in h.rows.withIndex()) for ((c, ch) in row.withIndex()) {
+            val x = x0 + c * k; val y = y0 + (top + ri) * k
+            when (ch) {
+                '#' -> clip(x, y, k, k, dark)
+                'o' -> clip(x, y, k, k, light)
+                '+' -> {
+                    clip(x, y, k, k, light)
+                    var yy = 0
+                    while (yy < k) {
+                        var xx = 0
+                        while (xx < k) {
+                            if (((x + xx) / 2 + (y + yy) / 2) % 2 == 0) clip(x + xx, y + yy, minOf(2, k - xx), minOf(2, k - yy), dark)
+                            xx += 2
+                        }
+                        yy += 2
+                    }
+                }
+            }
+        }
+        // where a hat cell touches bare body, a light edge keeps the two apart
+        fun bodyAt(c: Int, r: Int) = r in 0..15 && c in 0..15 && s.body[r][c] && (r to c) !in s.appendage && cell(c, r) !in "#+"
+        for ((ri, row) in h.rows.withIndex()) for ((c, ch) in row.withIndex()) {
+            if (ch != '#' && ch != '+') continue
+            val r = top + ri
+            val x = x0 + c * k; val y = y0 + r * k
+            if (bodyAt(c, r + 1)) clip(x, y + k - 2, k, 2, light)
+            if (bodyAt(c, r - 1)) clip(x, y, k, 2, light)
+            if (bodyAt(c - 1, r)) clip(x, y, 2, k, light)
+            if (bodyAt(c + 1, r)) clip(x + k - 2, y, 2, k, light)
+        }
     }
 
     private fun icon(rows: List<String>, x0: Int, y0: Int) {
@@ -376,6 +498,7 @@ class Lcd {
         const val W = 400
         const val H = 240
         const val ROWS = 4
+        private val TICK = listOf(2 to 5, 3 to 6, 4 to 7, 5 to 6, 6 to 5, 7 to 4, 8 to 3)
         const val LIGHT = 0xFFC9CCC2.toInt()
         const val DARK = 0xFF1E2120.toInt()
 

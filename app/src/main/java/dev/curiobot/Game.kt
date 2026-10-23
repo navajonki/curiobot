@@ -7,6 +7,8 @@ import dev.curiobot.brain.CreatureState
 import dev.curiobot.brain.Event
 import dev.curiobot.brain.MYSTERY
 import dev.curiobot.brain.Hunts
+import dev.curiobot.brain.Hats
+import dev.curiobot.brain.Quests
 import dev.curiobot.brain.HotCold
 import dev.curiobot.brain.Stories
 import dev.curiobot.brain.withArticle
@@ -36,6 +38,8 @@ import dev.curiobot.ui.NestView
 import dev.curiobot.ui.Hud
 import dev.curiobot.ui.Reveal
 import dev.curiobot.ui.Phase
+import dev.curiobot.ui.QuestView
+import dev.curiobot.ui.Scene
 import dev.curiobot.ui.UiState
 import dev.curiobot.vision.Eye
 import kotlinx.coroutines.CoroutineScope
@@ -70,7 +74,7 @@ class Game(private val ctx: Context) {
     enum class Button { NEXT, OK, BACK }
 
     /** Where the options came from, which decides what Back does and the header. */
-    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, KIND, IDEA, PLAY, GAME, STORY, BOOK, PAGE }
+    private enum class Level { HOME, PHOTO, TEACH, DOZE, NEST, KIND, IDEA, PLAY, GAME, STORY, BOOK, PAGE, QUEST, PARTY, HATS }
 
     /** What the screen types out while the text model thinks, plus an optional banner. */
     private data class RevealSpec(val text: String, val fanfare: String? = null, val kind: String? = null)
@@ -132,6 +136,11 @@ class Game(private val ctx: Context) {
     private var story: Stories.Run? = null
     private var bookStory = -1
     private var bookPage = 0
+    /** A quest just picked (not yet looked at), and where the quest page was opened from. */
+    private var questFresh = false
+    /** The celebration to show after the turn that finished a quest. */
+    private var partyScene: Scene? = null
+    private var questFrom = Level.PLAY
     private var ticker: Job? = null
     private val frameLock = Any()
     private var lastFrame: Bitmap? = null
@@ -279,8 +288,10 @@ class Game(private val ctx: Context) {
                 choose(Mind.intentsFor(state, fresh = false))
                 showIdle(Lines.pick(Stories.QUIT, rng.nextInt()), labelsFor(intents))
             }
-            Level.BOOK -> showPlayMenu()
+            Level.BOOK, Level.HATS -> showPlayMenu()
             Level.PAGE -> showBook()
+            Level.QUEST -> if (questFrom == Level.HOME) backToIdle() else showPlayMenu()
+            Level.PARTY -> backToIdle()
             Level.GAME -> { hot = null; backToIdle() }
             Level.IDEA -> {
                 // Leaving without deciding: the idea just isn't kept. It doesn't count against that kind of idea.
@@ -313,7 +324,9 @@ class Game(private val ctx: Context) {
     private fun moveCursor(d: Int) {
         val n = ui.options.size
         if (n == 0) return
-        show(ui.copy(cursor = Math.floorMod(ui.cursor + d, n)))
+        val c = Math.floorMod(ui.cursor + d, n)
+        // In the wardrobe the creature tries on whichever hat the cursor is on.
+        show(if (level == Level.HATS) ui.copy(cursor = c, hat = hatFor(args.getOrNull(c))) else ui.copy(cursor = c))
     }
 
     private fun perform(intent: Intent, arg: String?) {
@@ -431,6 +444,36 @@ class Game(private val ctx: Context) {
                 showPage()
             }
             Intent.NEXT_PAGE -> { bookPage++; showPage() }
+            Intent.QUEST, Intent.QUEST_ANOTHER -> {
+                val a = Quests.pick(state, nicknameMap(), rng, now)
+                questFresh = true
+                if (intent == Intent.QUEST) questFrom = level
+                Telemetry.log("quest_start", JSONObject().put("quest", a.template.id).put("name", a.name)
+                    .put("steps", JSONArray(a.steps.map { it.hunt })).put("rerolled", intent == Intent.QUEST_ANOTHER))
+                saveState()
+                showQuest()
+            }
+            Intent.QUEST_OPEN -> { questFresh = false; questFrom = level; showQuest() }
+            Intent.QUEST_DROP -> {
+                Quests.active(state)?.let {
+                    Telemetry.log("quest_dropped", JSONObject().put("quest", it.template.id).put("done", it.done))
+                }
+                Quests.clear(state)
+                mood = Mood.CONTENT
+                choose(Mind.intentsFor(state, fresh = false))
+                showIdle(Lines.pick(Quests.GAVE_UP, rng.nextInt()), labelsFor(intents))
+                saveState()
+            }
+            Intent.HATS -> showHats()
+            Intent.WEAR -> {
+                val id = hatFor(arg)
+                state.wearing = id
+                Telemetry.log("hat_on", JSONObject().put("hat", id ?: JSONObject.NULL))
+                mood = Mood.DELIGHTED
+                choose(Mind.intentsFor(state, fresh = false))
+                showIdle(Hats.byId(id)?.line ?: Hats.NO_HAT, labelsFor(intents))
+                saveState()
+            }
             Intent.HOT_COLD, Intent.GAME_ANOTHER -> {
                 val e = eye
                 val round = if (e == null) null else HotCold.pick(state, { e.categoryOf(it) }, now, rng)
@@ -607,17 +650,49 @@ class Game(private val ctx: Context) {
                 mood = r.mood
                 logReaction(word, r, novelty)
                 val special = specialEvent(word, cat, thing, now) ?: nestEvent(nestBefore, word, cat, r.firstTime)
-                val ev = gameWin?.let { (_, secs) -> mood = Mood.DELIGHTED; Event.GameWon(word, secs) }
+                // Finishing a quest is the biggest moment, even in the middle of a game.
+                val ev = (special as? Event.QuestDone)
+                    ?: gameWin?.let { (_, secs) -> mood = Mood.DELIGHTED; Event.GameWon(word, secs) }
                     ?: special ?: Event.Saw(word, r.firstTime, r.count, thing.nickname)
+                val newHat = nestHat(cat, word, now)
                 things.save()
-                turn(ev, fresh = true, reveal = revealFor(ev, word, cat, rec?.thing?.nickname, r.firstTime),
-                    menu = if (gameWin != null) listOf(Intent.GAME_ANOTHER, Intent.SHOW_NEW) to Level.GAME else null)
+                val reveal = revealFor(ev, word, cat, rec?.thing?.nickname, r.firstTime)
+                    .let { rv -> if (newHat != null && ev !is Event.QuestDone) rv.copy(fanfare = "NEW HAT!", kind = cat) else rv }
+                turn(ev, fresh = true, reveal = reveal, scene = (ev as? Event.QuestDone)?.let { partyScene },
+                    menu = when {
+                        ev is Event.QuestDone -> listOf(Intent.HATS, Intent.SHOW_NEW) to Level.PARTY
+                        gameWin != null -> listOf(Intent.GAME_ANOTHER, Intent.SHOW_NEW) to Level.GAME
+                        else -> null
+                    })
             }
         }
     }
 
-    /** A hunt found, a wish granted or a new nickname beats an ordinary sighting. */
+    /**
+     * A finished quest, a hunt found, a wish granted, a quest step or a new
+     * nickname beats an ordinary sighting. A sighting can count for a quest
+     * step and a hunt at once; the bigger moment is the one shown.
+     */
     private fun specialEvent(word: String, cat: String, thing: Thing, now: Long): Event? {
+        val questName = Quests.active(state)?.name
+        val step = Quests.progress(state, word, cat)
+        if (step != null) {
+            val a = Quests.active(state)!!
+            Telemetry.log("quest_step", JSONObject().put("quest", a.template.id).put("hunt", step.hunt).put("word", word)
+                .put("done", a.done))
+            if (a.complete) {
+                partyScene = Scene(a.name, a.steps.map { st ->
+                    val w = st.found!!
+                    nicknameFor(w) to (state.seen[w]?.cat?.takeIf { it in Nest.KINDS })
+                })
+                Quests.finish(state, now)
+                mood = Mood.DELIGHTED
+                Telemetry.log("quest_done", JSONObject().put("quest", a.template.id).put("name", a.name)
+                    .put("found", JSONArray(a.steps.map { it.found })).put("hat", a.template.hat)
+                    .put("quests_done", state.questsDone))
+                return Event.QuestDone(word, a.name, a.template.hat)
+            }
+        }
         Hunts.byId(state.huntId)?.takeIf { it.matches(word, cat) }?.let { h ->
             val e = Mind.completeHunt(state, h, word, now)
             mood = Mood.DELIGHTED
@@ -630,6 +705,11 @@ class Game(private val ctx: Context) {
             mood = Mood.DELIGHTED
             Telemetry.log("wish_granted", JSONObject().put("wish", w.id).put("word", word).put("journal", e.text))
             return Event.WishGranted(word, w.label)
+        }
+        if (step != null && questName != null) {
+            val a = Quests.active(state)!!
+            mood = Mood.DELIGHTED
+            return Event.QuestStep(word, Quests.stepLabel(step), questName, a.done, a.steps.size)
         }
         if (thing.nickname == null && thing.count >= ThingMemory.NAME_AFTER) {
             val nick = Nicknames.make(word, state.seed, thing.id)
@@ -673,6 +753,8 @@ class Game(private val ctx: Context) {
         return when (ev) {
             is Event.GameWon -> RevealSpec("Is it... yes! ${withArticle(word).replaceFirstChar { it.uppercase() }}!", "FOUND IT! ${ev.seconds}s")
             is Event.Found -> RevealSpec(guess, "HUNT DONE!")
+            is Event.QuestStep -> RevealSpec(guess, "QUEST ${ev.done}/${ev.total}!", cat.takeIf { it in Nest.KINDS })
+            is Event.QuestDone -> RevealSpec(guess, "QUEST DONE!", cat.takeIf { it in Nest.KINDS })
             is Event.WishGranted -> RevealSpec(guess, "WISH CAME TRUE!")
             is Event.Named -> RevealSpec("Wait... I know this $word...", "NAMED: ${ev.nickname}")
             is Event.NewKind -> RevealSpec(guess, "NEW KIND!", cat)
@@ -686,9 +768,11 @@ class Game(private val ctx: Context) {
 
     private fun showPlayMenu() {
         mood = Mood.CURIOUS
+        val quest = Quests.active(state)
         val opts = listOfNotNull(Intent.HOT_COLD, Intent.ADVENTURE.takeIf { Ideas.canReflect(state) },
-            Intent.STORYBOOK.takeIf { state.stories.isNotEmpty() })
-        choose(opts, level = Level.PLAY)
+            if (quest != null) Intent.QUEST_OPEN else Intent.QUEST,
+            Intent.STORYBOOK.takeIf { state.stories.isNotEmpty() }, Intent.HATS.takeIf { state.hats.isNotEmpty() })
+        choose(opts, opts.map { if (it == Intent.QUEST_OPEN) "${quest!!.done}/${quest.steps.size}" else null }, Level.PLAY)
         showIdle(Lines.pick(Lines.PLAY, rng.nextInt()), labelsFor(intents))
     }
 
@@ -715,6 +799,48 @@ class Game(private val ctx: Context) {
         choose(listOf(if (last) Intent.STORY_END else Intent.NEXT_PAGE), level = Level.PAGE)
         mood = Mood.CONTENT
         showIdle(page, labelsFor(intents))
+    }
+
+    // ---------- quests and hats ----------
+
+    /** The quest page: its checklist in the speech bubble, and what to do next. */
+    private fun showQuest() {
+        val a = Quests.active(state) ?: return showPlayMenu()
+        val nick = nicknameMap()
+        mood = if (questFresh) Mood.DELIGHTED else Mood.CURIOUS
+        val opts = listOf(Intent.SHOW_NEW, if (questFresh && a.done == 0) Intent.QUEST_ANOTHER else Intent.QUEST_DROP)
+        choose(opts, level = Level.QUEST)
+        val title = if (questFresh) "New quest: ${a.name}" else a.title
+        val steps = a.steps.map { Quests.stepLabel(it) to it.found?.let { w -> nick[w] ?: w } }
+        val line = "$title. " + steps.joinToString(", ") { (l, f) -> if (f == null) "need $l" else "$l: $f" }
+        showIdle(line, labelsFor(intents))
+        ui = ui.copy(quest = QuestView(title, steps))
+    }
+
+    /** The wardrobe: next tries each hat on, ok keeps it. */
+    private fun showHats() {
+        val owned = Hats.owned(state)
+        if (owned.isEmpty()) return showPlayMenu()
+        mood = Mood.DELIGHTED
+        val names = owned.map { it.name } + "no hat"
+        choose(List(names.size) { Intent.WEAR }, names, Level.HATS)
+        showIdle("My hats: ${owned.size} of ${Hats.ALL.size}. Which one?", labelsFor(intents))
+        val at = owned.indexOfFirst { it.id == state.wearing }.let { if (it < 0) names.size - 1 else it }
+        ui = ui.copy(cursor = at, hat = hatFor(names[at]))
+    }
+
+    /** Wardrobe option text back to a hat id; "no hat" is null. */
+    private fun hatFor(name: String?): String? = Hats.ALL.firstOrNull { it.name.equals(name, ignoreCase = true) }?.id
+
+    /** A nest spot that is full earns its hat (a chef hat for six kitchen things). Returns the new hat. */
+    private fun nestHat(cat: String, word: String, now: Long): String? {
+        val hat = Hats.forFullKind(state, cat) ?: return null
+        if ((Nest.slots(state).firstOrNull { it.kind == cat }?.words?.size ?: 0) < Nest.LEVELS.last()) return null
+        Hats.unlock(state, hat)
+        state.addJournal(dev.curiobot.brain.JournalEntry(now, word, Mood.DELIGHTED.word,
+            "Day ${Mind.dayNumber(state, now)}: my ${Nest.NAMES[cat] ?: cat} spot is full. Got ${Hats.phrase(hat)}."))
+        Telemetry.log("hat_unlocked", JSONObject().put("hat", hat).put("from", "nest").put("kind", cat))
+        return hat
     }
 
     // ---------- hot and cold ----------
@@ -906,7 +1032,7 @@ class Game(private val ctx: Context) {
         val ls = lastSeen ?: return backToIdle()
         val now = System.currentTimeMillis()
         val firstLook = ls.label == null
-        ls.label?.let { Mind.unrecord(state, it, ls.at) }
+        ls.label?.let { Mind.unrecord(state, it, ls.at); Quests.undo(state, it) }
         val thing = ls.thingId?.let { things.byId(it) }?.also { things.relabel(it, word, cat) }
             ?: things.add(word, cat, ls.embedding, now, taught = true)
         val r = Mind.react(state, Seeing(Verdict.NORMAL, word, cat, 1.0, ls.novelty), now, applyNeeds = firstLook)
@@ -921,7 +1047,9 @@ class Game(private val ctx: Context) {
         // The right word can finish a hunt or grant the wish, same as a photo would.
         val special = if (word == MYSTERY) null else specialEvent(word, cat, thing, now)
         things.save()
-        turn(special ?: Event.Taught(word), fresh = true)
+        if (special is Event.QuestDone) turn(special, fresh = true, scene = partyScene,
+            menu = listOf(Intent.HATS, Intent.SHOW_NEW) to Level.PARTY)
+        else turn(special ?: Event.Taught(word), fresh = true)
     }
 
     // ---------- turns ----------
@@ -929,7 +1057,7 @@ class Game(private val ctx: Context) {
     /** Ask the text model for a line + labels, check them, fall back if needed. */
     /** [menu] overrides the options that follow (an idea's keep/drop choice). */
     private fun turn(event: Event, fresh: Boolean, menu: Pair<List<Intent>, Level>? = null, reveal: RevealSpec? = null,
-                     menuArgs: List<String?> = emptyList()) {
+                     menuArgs: List<String?> = emptyList(), scene: Scene? = null) {
         val grewNest = event is Event.NewKind || event is Event.KindGrew || event is Event.Favorite
         val next = menu?.first ?: afterTurnIntents(fresh).let { if (grewNest && it != DOZE_CUE) it + Intent.NEST else it }
         choose(next, menuArgs, level = when {
@@ -956,6 +1084,7 @@ class Game(private val ctx: Context) {
             if (event is Event.StoryBeat) event.run.pages += result.line
             Telemetry.log("turn", result.log)
             showIdle(result.line, result.labels)
+            scene?.let { ui = ui.copy(scene = it) }
             saveState()
         }
     }
@@ -1004,7 +1133,8 @@ class Game(private val ctx: Context) {
         val labelLog = JSONArray()
         var mi = 0
         val labels = next.mapIndexed { idx, intent ->
-            val written = intent.fallbackLabel(labelArgs.getOrNull(idx) ?: state.focusWord, rng.nextInt(10))
+            val written = intent.fallbackLabel(labelArgs.getOrNull(idx)
+                ?: (if (intent == Intent.QUEST_OPEN) questCount() else state.focusWord), rng.nextInt(10))
             if (!intent.modelLabel) {
                 labelLog.put(JSONObject().put("intent", intent.id).put("label", written).put("source", "fixed"))
                 return@mapIndexed written
@@ -1043,6 +1173,8 @@ class Game(private val ctx: Context) {
             is Event.Taught -> if (event.unnamed) Lines.pick(Lines.UNNAMED, roll) else Lines.pick(Lines.TAUGHT, roll, event.word)
             is Event.About -> Lines.pick(Lines.ABOUT, roll, event.word, label = event.thought)
             is Event.Found -> Lines.pick(Lines.FOUND, roll, event.word)
+            is Event.QuestStep -> Lines.pick(Lines.QUEST_STEP, roll, event.word, label = event.label)
+            is Event.QuestDone -> Lines.pick(Quests.DONE, roll, event.word, label = event.quest).let { Hats.fill(it, event.hat) }
             is Event.WishGranted -> Lines.pick(Lines.WISH_CAME_TRUE, roll, event.word)
             is Event.Named -> Lines.pick(Lines.NAMED, roll, event.word, label = event.nickname)
             is Event.NewKind -> Lines.pick(Lines.NEW_KIND, roll, event.word, label = event.kinds)
@@ -1077,10 +1209,17 @@ class Game(private val ctx: Context) {
         Level.BOOK -> "storybook"
         Level.PAGE -> state.stories.getOrNull(bookStory)?.title?.lowercase()
         Level.GAME -> "hot and cold"
+        Level.QUEST -> "quest"
+        Level.PARTY -> "quest done"
+        Level.HATS -> "hats"
         Level.IDEA -> "new idea"
     }
 
-    private fun labelsFor(list: List<Intent>) = list.mapIndexed { i, it -> it.fallbackLabel(args.getOrNull(i) ?: state.focusWord, 0) }
+    private fun labelsFor(list: List<Intent>) = list.mapIndexed { i, it ->
+        it.fallbackLabel(args.getOrNull(i) ?: (if (it == Intent.QUEST_OPEN) questCount() else state.focusWord), 0)
+    }
+
+    private fun questCount() = Quests.active(state)?.let { "${it.done}/${it.steps.size}" }
 
     // ---------- needs & display ----------
 
@@ -1119,6 +1258,7 @@ class Game(private val ctx: Context) {
             phase = Phase.IDLE, name = state.traits.name, satisfaction = state.satisfaction, energy = state.energy,
             mood = if (state.asleep) Mood.SLEEPY else mood, line = line, options = labels, cursor = 0,
             spriteSeed = state.seed, asleep = state.asleep, wish = wishActive(), title = titleFor(),
+            hat = state.wearing, questBadge = questCount(),
         ))
         Telemetry.log("screen", JSONObject().put("line", line).put("options", JSONArray(labels))
             .put("menu", level.name.lowercase())
@@ -1127,7 +1267,8 @@ class Game(private val ctx: Context) {
 
     private fun show(s: UiState) {
         ui = if (::state.isInitialized && s.name.isEmpty()) s.copy(name = state.traits.name, spriteSeed = state.seed,
-            satisfaction = state.satisfaction, energy = state.energy, asleep = state.asleep, wish = wishActive()) else s
+            satisfaction = state.satisfaction, energy = state.energy, asleep = state.asleep, wish = wishActive(),
+            hat = state.wearing, questBadge = questCount()) else s
     }
 
     // ---------- persistence ----------
@@ -1185,6 +1326,8 @@ class Game(private val ctx: Context) {
             appendLine("         curiosity %.2f  energy %.2f  words %d  asleep %s".format(state.satisfaction, state.energy, state.seen.size, state.asleep))
             appendLine("         hunt ${Hunts.byId(state.huntId)?.label ?: "none"} (done ${state.huntsDone})  " +
                 "wish ${Hunts.byId(state.wishId)?.label ?: "none"}${if (state.wishGranted) " (granted)" else ""}")
+            appendLine("         quest ${Quests.active(state)?.let { "${it.name} ${it.done}/${it.steps.size}" } ?: "none"} (done ${state.questsDone})  " +
+                "hats ${state.hats.size}, wearing ${state.wearing ?: "none"}")
         }
     }
 
@@ -1224,6 +1367,13 @@ class Game(private val ctx: Context) {
         appendLine()
         appendLine("HUNT ${Hunts.byId(state.huntId)?.label ?: "none"}   done ${state.huntsDone}   recent ${state.recentHunts.joinToString()}")
         appendLine("WISH ${Hunts.byId(state.wishId)?.label ?: "none"}${if (state.wishGranted) " (granted)" else ""}")
+        val q = Quests.active(state)
+        appendLine("QUEST ${q?.name ?: "none"}   done ${state.questsDone}   recent ${state.recentQuests.joinToString()}")
+        q?.steps?.forEach { appendLine("  [${if (it.found != null) "x" else " "}] ${Quests.stepLabel(it)}${it.found?.let { w -> ": $w" } ?: ""}") }
+        appendLine("HATS ${Hats.owned(state).joinToString { it.name }.ifEmpty { "none yet" }}   wearing ${Hats.byId(state.wearing)?.name ?: "nothing"}")
+        appendLine()
+        appendLine("STORIES (${state.stories.size})")
+        state.stories.asReversed().forEach { appendLine("  ${fmt.format(it.ts)}  ${it.title}: ${it.pages.joinToString(" / ")}") }
         appendLine()
         appendLine("STATE.JSON")
         append(runCatching { JSONObject(stateFile.readText()).toString(2) }.getOrElse { "(couldn't read: ${it.message})" })

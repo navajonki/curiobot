@@ -57,6 +57,13 @@ enum class Intent(val id: String, val ask: String, val labels: List<String>, val
     STORYBOOK("storybook", "", listOf("Storybook"), modelLabel = false),
     READ_STORY("read_story", "", listOf("{word}"), modelLabel = false),
     NEXT_PAGE("next_page", "", listOf("Next page"), modelLabel = false),
+    /** Quests and hats (see [Quests], [Hats]). */
+    QUEST("quest", "", listOf("A quest"), modelLabel = false),
+    QUEST_OPEN("quest_open", "", listOf("Our quest ({word})"), modelLabel = false),
+    QUEST_ANOTHER("quest_another", "", listOf("A different quest"), modelLabel = false),
+    QUEST_DROP("quest_drop", "", listOf("Give up the quest"), modelLabel = false),
+    HATS("hats", "", listOf("Try on hats"), modelLabel = false),
+    WEAR("wear", "", listOf("{word}"), modelLabel = false),
     /** On a nest kind's page. */
     THINK_KIND("think_kind", "", listOf("Think about these"), modelLabel = false),
     HUNT_KIND("hunt_kind", "", listOf("{word}"), modelLabel = false),
@@ -195,6 +202,18 @@ sealed class Event {
         override val requiredWords get() = words
         override val context get() = ctx
         override fun promptLine() = line
+    }
+    /** One step of a quest filled. Code picked the step; the model voices finding it. */
+    data class QuestStep(val word: String, val label: String, val quest: String, val done: Int, val total: Int) : Event() {
+        override val requiredWord get() = word
+        override val context get() = "$label $quest quest"
+        override fun promptLine() = "event: I was looking for $label for $quest and found ${withArticle(word)}"
+    }
+    /** A quest finished: the payoff scene. Written lines only. */
+    data class QuestDone(val word: String, val quest: String, val hat: String) : Event() {
+        override val requiredWord get() = word
+        override val written get() = true
+        override fun promptLine() = "event: finished my quest, $quest, with the $word, and got a new hat"
     }
     /** Won hot and cold. Written lines only: a fixed, happy moment. */
     data class GameWon(val word: String, val seconds: Int) : Event() {
@@ -348,6 +367,7 @@ object Mind {
         if (s.energy < TIRED) out += Intent.NAP
         out += Intent.SHOW_NEW
         out += if (s.huntId != null) Intent.HUNT_SKIP else Intent.HUNT
+        if (Quests.active(s) != null) out += Intent.QUEST_OPEN
         if (s.wishId != null && !s.wishGranted) out += Intent.WISH
         if (Nest.kindsFound(s) > 0) out += Intent.NEST
         if (Ideas.canReflect(s)) out += Intent.REFLECT

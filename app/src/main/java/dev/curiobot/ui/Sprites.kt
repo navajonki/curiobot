@@ -18,6 +18,10 @@ class CreatureSprite(seed: Long) {
     private val leftEye = 4
     private val rightEye: Int
     val spots = mutableListOf<Pair<Int, Int>>()
+    /** The first row of the head itself (antennae, ears and sprouts sit above it). Hats rest here. */
+    val headTop: Int
+    /** Ears, antennae or a sprout: hidden under a hat. */
+    val appendage = mutableSetOf<Pair<Int, Int>>()
 
     init {
         val r = SplittableRandom(seed xor 0x5EED5EEDL)
@@ -38,6 +42,8 @@ class CreatureSprite(seed: Long) {
             for (x in (8 - half) until 8) { body[y][x] = true; body[y][15 - x] = true }
             top = minOf(top, y); bottom = max(bottom, y)
         }
+        headTop = top
+        val bare = Array(16) { body[it].clone() }
         // appendage
         when (r.nextInt(5)) {
             1 -> for (x in listOf(5, 10)) { // antennae
@@ -54,6 +60,7 @@ class CreatureSprite(seed: Long) {
             }
             4 -> for (x in listOf(5, 10)) if (top - 1 >= 0) body[top - 1][x] = true // nubs
         }
+        for (y in 0 until top) for (x in 0..15) if (body[y][x] && !bare[y][x]) appendage += y to x
         // feet
         if (bottom + 1 <= 15) for (x in listOf(5, 6, 9, 10)) body[bottom + 1][x] = true
         val h = bottom - top + 1
@@ -131,7 +138,25 @@ object Pix {
     val CRACK = listOf(5 to 3, 6 to 4, 7 to 3, 8 to 4, 9 to 5, 10 to 4, 6 to 5, 9 to 6)
     val EYE = listOf("..###..", ".#...#.", "#..#..#", ".#...#.", "..###..")
     val BOLT = listOf("...#.", "..#..", ".###.", "..#..", ".#...")
+    val FLAG = listOf("##.......", "######...", "#########", "######...", "##.......", "#........", "#........", "#........", "#........")
     val STAR = listOf("....#....", "....#....", "...###...", "#########", ".#######.", "..#####..", "..##.##..", ".##...##.", ".#.....#.")
+    /**
+     * Hats, 16 columns wide to match the creature. '#' dark, '+' dithered,
+     * 'o' light, '.' clear. Row [Hat.anchor] sits on the creature's [CreatureSprite.headTop].
+     */
+    class Hat(val anchor: Int, val rows: List<String>)
+    val HATS = mapOf(
+        "party" to Hat(3, listOf(".......##.......", "......#++#......", "......++++......", ".....++++++.....")),
+        "nightcap" to Hat(3, listOf("...........##...", "........+++##...", ".....++++++.....", "....########....")),
+        "beret" to Hat(3, listOf("........#.......", "....++++++++....", "...++++++++++...", "....########....")),
+        "tophat" to Hat(3, listOf(".....######.....", ".....######.....", ".....++++++.....", "...##########...")),
+        "headphones" to Hat(1, listOf("....########....", "...#........#...", "..#..........#..", ".##..........##.", ".##..........##.")),
+        "explorer" to Hat(3, listOf("......####......", ".....######.....", ".....++++++.....", "..############..")),
+        "chef" to Hat(3, listOf("....###..###....", "...#ooo##ooo#...", "....#oooooo#....", "....########....")),
+        "flowers" to Hat(2, listOf("...##..##..##...", "..#oo##oo##oo#..", "...##..##..##...")),
+        "propeller" to Hat(3, listOf("...####..####...", ".......##.......", ".....++++++.....", "....########....")),
+        "bow" to Hat(2, listOf("...##......##...", "...###++++###...", "...##......##...")),
+    )
     /** One 12x12 token per kind of thing, for the nest screen. */
     val NEST = mapOf(
         "animal" to listOf(

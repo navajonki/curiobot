@@ -41,3 +41,24 @@ class SpriteTest {
         File("build/sprites.txt").writeText(out.toString())
     }
 }
+
+class HatTest {
+    @Test fun everyHatIsDrawnAndFitsEveryCreature() {
+        for (h in dev.curiobot.brain.Hats.ALL) {
+            val hat = Pix.HATS[h.id]
+            assertTrue("no pixels for ${h.id}", hat != null)
+            assertTrue(hat!!.rows.all { it.length == 16 })
+            for (seed in 0L until 300L) {
+                val s = CreatureSprite(seed)
+                val top = s.headTop - hat.anchor
+                // Fits under the status bar: at most one row above the sprite box.
+                assertTrue("${h.id} seed $seed starts at row $top", top >= -1)
+                // Never covers the face, in any mood.
+                for (m in Mood.values()) for ((y, x) in s.face(m, asleep = false, blink = false) + s.face(m, true, false)) {
+                    val c = hat.rows.getOrNull(y - top)?.getOrNull(x) ?: '.'
+                    if ((y to x) !in s.spots) assertTrue("${h.id} covers the face at $y,$x for seed $seed", c == '.')
+                }
+            }
+        }
+    }
+}
